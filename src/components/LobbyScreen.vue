@@ -9,64 +9,87 @@ const props = defineProps({
   connection: { type: String, default: 'idle' },
 })
 
-const emit = defineEmits(['copy-code', 'copy-link', 'leave'])
+const emit = defineEmits(['copy-code', 'copy-link', 'share', 'leave'])
 
 const myName = computed(() => props.room.players?.[props.room.you]?.name || 'You')
 
 const waitingLabel = computed(() => {
   if (props.connection === 'reconnecting' || props.connection === 'offline') {
-    return 'Reconnecting to the relay…'
+    return 'Reconnecting to peer relay…'
   }
-  return 'Looking for your opponent…'
+  return 'Waiting for friend to join the match…'
 })
 </script>
 
 <template>
   <section class="card lobby">
-    <p class="eyebrow">Match created</p>
-    <h1>Waiting for a friend</h1>
-
-    <div class="code-display" aria-label="Match code">
-      <span v-for="(char, index) in props.room.code" :key="index">{{ char }}</span>
+    <div class="lobby-header">
+      <div class="status-badge pulse">
+        <span class="pulse-dot"></span>
+        <span>Lobby Active</span>
+      </div>
+      <p class="eyebrow">Match Room</p>
+      <h1>Waiting for Friend</h1>
     </div>
 
-    <p class="lede">
-      Share this code. Your friend opens the site and enters the same code to join your match.
-    </p>
-
-    <div class="actions">
-      <button class="btn ghost" type="button" @click="emit('copy-code')">
-        {{ props.copied === 'code' ? 'Code copied ✓' : 'Copy code' }}
+    <!-- Match Code Box -->
+    <div class="code-box" role="region" aria-label="Match code">
+      <div class="code-header">
+        <span>Room Code</span>
+        <span class="code-hint">Tap to copy</span>
+      </div>
+      <button class="code-display interactive" type="button" @click="emit('copy-code')">
+        <span v-for="(char, index) in props.room.code" :key="index" class="code-char">{{ char }}</span>
       </button>
-      <button class="btn ghost" type="button" @click="emit('copy-link')">
-        {{ props.copied === 'link' ? 'Link copied ✓' : 'Copy invite link' }}
+      <div v-if="props.copied === 'code'" class="copied-banner">
+        Code copied to clipboard! ✓
+      </div>
+    </div>
+
+    <div class="actions share-actions">
+      <button class="btn primary share-btn" type="button" @click="emit('share')">
+        <span class="icon">🔗</span>
+        <span>Share Invite Link</span>
+      </button>
+      <button class="btn ghost copy-btn" type="button" @click="emit('copy-code')">
+        <span class="icon">📋</span>
+        <span>{{ props.copied === 'code' ? 'Code Copied ✓' : 'Copy Code' }}</span>
       </button>
     </div>
 
-    <div class="players">
-      <div class="player active">
-        <span class="symbol x">X</span>
-        <div>
+    <!-- Matchup Preview -->
+    <div class="matchup-preview">
+      <div class="player-slot seated">
+        <div class="slot-avatar x-avatar">✕</div>
+        <div class="slot-info">
           <strong>{{ myName }}</strong>
-          <small>You</small>
+          <span class="slot-tag">Host • Ready</span>
         </div>
       </div>
-      <div class="player waiting">
-        <span class="symbol o">O</span>
-        <div>
+
+      <div class="matchup-vs">VS</div>
+
+      <div class="player-slot waiting">
+        <div class="slot-avatar o-avatar waiting-radar">
+          <span class="radar-ping"></span>
+          <span>○</span>
+        </div>
+        <div class="slot-info">
           <strong>Waiting…</strong>
-          <small>Share the code to invite</small>
+          <span class="slot-tag waiting-text">Open link to join</span>
         </div>
       </div>
     </div>
 
-    <div class="waiting-row">
+    <div class="waiting-indicator">
       <span class="spinner" aria-hidden="true"></span>
       <span>{{ waitingLabel }}</span>
     </div>
 
-    <button class="btn link danger" type="button" :disabled="props.busy" @click="emit('leave')">
-      Leave match
-    </button>
+    <div class="lobby-footer">
+      <button class="btn link danger" type="button" :disabled="props.busy" @click="emit('leave')">
+        Leave Room
+      </button>
+    </div>
   </section>
 </template>

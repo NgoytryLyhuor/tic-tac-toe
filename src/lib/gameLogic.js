@@ -43,6 +43,9 @@ export function createRoom(code, hostId, hostName, hostToken) {
     board: Array(9).fill(null),
     players: { X: { id: hostId, name: hostName }, O: null },
     turn: 'X',
+    round: 1,
+    starter: 'X',
+    scores: { X: 0, O: 0, draws: 0 },
     status: 'waiting',
     result: null,
     rematch: { X: false, O: false },
@@ -70,7 +73,10 @@ export function seatGuest(room, playerId, name) {
 
   room.players.O = { id: playerId, name: normalizeName(name, 'Player 2') }
   room.board = Array(9).fill(null)
-  room.turn = 'X'
+  room.round = room.round || 1
+  room.starter = room.starter || 'X'
+  room.turn = room.starter
+  room.scores = room.scores || { X: 0, O: 0, draws: 0 }
   room.status = 'playing'
   room.result = null
   room.rematch = { X: false, O: false }
@@ -104,6 +110,16 @@ export function applyMove(room, symbol, cell) {
     room.status = 'finished'
     room.result = result
     room.rematch = { X: false, O: false }
+    if (!room.scores) {
+      room.scores = { X: 0, O: 0, draws: 0 }
+    }
+    if (result.winner === 'X') {
+      room.scores.X = (room.scores.X || 0) + 1
+    } else if (result.winner === 'O') {
+      room.scores.O = (room.scores.O || 0) + 1
+    } else if (result.winner === 'draw') {
+      room.scores.draws = (room.scores.draws || 0) + 1
+    }
   } else {
     room.turn = symbol === 'X' ? 'O' : 'X'
   }
@@ -124,7 +140,11 @@ export function requestRematch(room, symbol) {
 
   if (room.rematch.X && room.rematch.O) {
     room.board = Array(9).fill(null)
-    room.turn = 'X'
+    // Alternate starter each round for fairness!
+    const nextStarter = (room.starter === 'X') ? 'O' : 'X'
+    room.starter = nextStarter
+    room.turn = nextStarter
+    room.round = (room.round || 1) + 1
     room.status = 'playing'
     room.result = null
     room.rematch = { X: false, O: false }
@@ -137,7 +157,10 @@ export function requestRematch(room, symbol) {
 export function resetForWaiting(room) {
   room.players.O = null
   room.board = Array(9).fill(null)
+  room.round = 1
+  room.starter = 'X'
   room.turn = 'X'
+  room.scores = { X: 0, O: 0, draws: 0 }
   room.status = 'waiting'
   room.result = null
   room.rematch = { X: false, O: false }
@@ -152,6 +175,9 @@ export function toWireRoom(room) {
     hostToken: room.hostToken,
     board: room.board,
     turn: room.turn,
+    round: room.round || 1,
+    starter: room.starter || 'X',
+    scores: room.scores || { X: 0, O: 0, draws: 0 },
     status: room.status,
     result: room.result,
     rematch: room.rematch,

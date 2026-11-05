@@ -10,6 +10,7 @@ import {
   seatGuest,
   toWireRoom,
 } from './gameLogic.js'
+import { clearHostSession, loadHostSession, saveHostSession } from './player.js'
 
 /**
  * Free public MQTT relays over secure WebSockets. No account, no server, no database.
@@ -74,6 +75,15 @@ export class GameSession {
     this.topic = TOPIC_PREFIX + this.code
     this.onStatus('connecting')
 
+    // Check if we are resuming an active host session in this browser tab
+    const savedHost = loadHostSession(this.code)
+    if (savedHost && savedHost.hostToken && savedHost.room) {
+      this.isHost = true
+      this.hostToken = savedHost.hostToken
+      this.room = savedHost.room
+      this.lastGuestActionId = ''
+    }
+
     try {
       const { client, index } = await this.connectBroker(preferredBroker)
       if (this.stopped) {
@@ -89,12 +99,22 @@ export class GameSession {
       this.brokerIndex = index
       this.onBroker(index)
       this.attachClient()
-      this.onStatus('probing')
-      this.subscribe(() => this.sendHello())
 
-      this.probeTimer = this.setTimer(() => {
-        if (!this.isHost && !this.room && !this.rejected) this.becomeHost()
-      }, PROBE_DELAY)
+      if (this.isHost && this.room) {
+        this.emitState()
+        this.onStatus('hosting')
+        this.subscribe(() => {
+          this.publishState()
+          this.startHeartbeat()
+        })
+      } else {
+        this.onStatus('probing')
+        this.subscribe(() => this.sendHello())
+
+        this.probeTimer = this.setTimer(() => {
+          if (!this.isHost && !this.room && !this.rejected) this.becomeHost()
+        }, PROBE_DELAY)
+      }
 
       this.setInterval(() => this.tick(), PING_MS)
       this.setInterval(() => this.watch(), 2000)
@@ -326,6 +346,11 @@ export class GameSession {
       case 'error':
         if (!message.to || message.to === this.playerId) {
           if (message.actionId && message.actionId === this.pending?.id) {
+            if (this.pending.rollback && this.room) {
+              this.room.board = this.pending.rollback.board
+              this.room.turn = this.pending.rollback.turn
+              this.onState({ ...this.room })
+            }
             this.clearPending()
           }
           this.onError(message.message || 'Something went wrong.')
@@ -408,6 +433,7 @@ export class GameSession {
     if (!this.room.players.O) {
       this.lastGuestActionId = ''
       seatGuest(this.room, message.playerId, message.name)
+      saveHostSession(this.code, { hostToken: this.hostToken, room: this.room })
       this.emitState()
       this.publishState()
       return
@@ -444,6 +470,7 @@ export class GameSession {
     }
 
     this.lastGuestActionId = message.actionId || ''
+    saveHostSession(this.code, { hostToken: this.hostToken, room: this.room })
     this.emitState()
     this.publishState()
   }
@@ -460,6 +487,7 @@ export class GameSession {
     if (!requestRematch(this.room, 'O').ok) return
 
     this.lastGuestActionId = message.actionId || ''
+    saveHostSession(this.code, { hostToken: this.hostToken, room: this.room })
     this.emitState()
     this.publishState()
   }
@@ -470,6 +498,7 @@ export class GameSession {
 
     this.lastGuestActionId = ''
     resetForWaiting(this.room)
+    saveHostSession(this.code, { hostToken: this.hostToken, room: this.room })
     this.emitState()
     this.publishState()
   }
@@ -490,6 +519,7 @@ export class GameSession {
     this.hostToken = randomId()
     this.room = createRoom(this.code, this.playerId, this.name, this.hostToken)
     this.room.opponentOnline = false
+    saveHostSession(this.code, { hostToken: this.hostToken, room: this.room })
     this.emitState()
     this.publishState()
     this.startHeartbeat()
@@ -497,6 +527,7 @@ export class GameSession {
   }
 
   demote() {
+    clearHostSession(this.code)
     this.isHost = false
     this.room = null
     this.hostToken = ''
@@ -554,13 +585,36 @@ export class GameSession {
     if (this.isHost) {
       const result = applyMove(this.room, 'X', cell)
       if (!result.ok) return result
+      saveHostSession(this.code, { hostToken: this.hostToken, room: this.room })
       this.emitState()
       this.publishState()
       return { ok: true }
     }
 
     if (this.pending?.kind === 'move') return { ok: true }
-    this.queuePending('move', { cell })
+    if (
+      this.room.status !== 'playing' ||
+      this.room.turn !== 'O' ||
+      this.room.board[cell] !== null
+    ) {
+      return { ok: false, error: "It's not your turn yet." }
+    }
+
+    // Immediate optimistic update for the guest
+    const rollback = {
+      board: [...this.room.board],
+      turn: this.room.turn,
+    }
+    const optimisticBoard = [...this.room.board]
+    optimisticBoard[cell] = 'O'
+    this.room = {
+      ...this.room,
+      board: optimisticBoard,
+      turn: 'X',
+    }
+    this.onState(this.room)
+
+    this.queuePending('move', { cell, rollback })
     return { ok: true }
   }
 
@@ -570,17 +624,32 @@ export class GameSession {
     if (this.isHost) {
       const result = requestRematch(this.room, 'X')
       if (!result.ok) return result
+      saveHostSession(this.code, { hostToken: this.hostToken, room: this.room })
       this.emitState()
       this.publishState()
       return { ok: true }
     }
 
     if (this.pending?.kind === 'rematch') return { ok: true }
+
+    // Immediate optimistic feedback on guest
+    if (this.room && this.room.rematch) {
+      this.room = {
+        ...this.room,
+        rematch: {
+          ...this.room.rematch,
+          O: true,
+        },
+      }
+      this.onState(this.room)
+    }
+
     this.queuePending('rematch')
     return { ok: true }
   }
 
   leave() {
+    clearHostSession(this.code)
     const client = this.client
     if (client) {
       if (this.isHost) this.publish({ type: 'closed' }, 1)
@@ -614,8 +683,10 @@ export class GameSession {
   }
 
   pageHide() {
-    // A guest refresh should keep its seat, so only the host announces a close.
-    if (this.isHost) this.publish({ type: 'closed' }, 0)
+    // Note: Do not send 'closed' on pagehide because mobile browsers and
+    // Telegram Mini App fire pagehide whenever the user switches apps or minimizes
+    // (for example to copy and share the match code in WhatsApp or Telegram).
+    // Explicit 'leave()' already sends 'closed' when the user chooses to exit.
   }
 
   stop() {
