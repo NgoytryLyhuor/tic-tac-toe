@@ -1,113 +1,142 @@
-# Tic Tac Toe — play with a friend
+# ⚔️ Tic Tac Toe — 1v1 Real-Time Multiplayer
 
-A tiny online tic-tac-toe game. One player creates a match with a code (for example `1234`),
-sends that code to a friend, and the friend enters the same code to join the same board.
+A fast, modern online 1v1 Tic-Tac-Toe game designed for mobile and desktop. Play with friends anywhere in real-time with **zero account creation**, **zero database**, and **100% peer-to-peer relay sync**.
 
-**Live:** <https://tic-tac-toe-ivory-eta-13.vercel.app>
-**Repo:** <https://github.com/NgoytryLyhuor/tic-tac-toe>
+---
 
-- **Frontend:** Vue 3 + Vite (static build)
-- **Transport:** MQTT over secure WebSockets using free public brokers
-- **Backend / database:** none — no server, no account, no storage to provision
-- **Bonus:** works as a Telegram Mini App (the Telegram WebApp script is already loaded)
+## 🎮 Play Live (Easy to Remember Links)
 
-## Run locally
+- **Primary Short URL:** [https://ttt-mini.vercel.app](https://ttt-mini.vercel.app)
+- **Alternative PvP URL:** [https://ttt-pvp.vercel.app](https://ttt-pvp.vercel.app)
+- **Personal Alias:** [https://lyhuor-ttt.vercel.app](https://lyhuor-ttt.vercel.app)
+- **GitHub Repository:** [https://github.com/NgoytryLyhuor/tic-tac-toe](https://github.com/NgoytryLyhuor/tic-tac-toe)
+
+---
+
+## ⚡ How the Game Works
+
+The game operates over **secure WebSocket MQTT relays** without requiring any traditional backend, database, or server storage. The match code acts as a private, real-time sync topic (`tictactoe-mini/v1/room/<CODE>`).
+
+```text
+[ Player 1: Host (X) ]  <--->  [ Public MQTT Secure WebSocket Relay ]  <--->  [ Player 2: Guest (O) ]
+(Authoritative State)                    (QoS 1 Message Sync)                  (Optimistic UI + Retry)
+```
+
+### 👑 Roles & Architecture
+
+#### 1. Host (Player X)
+- **Creation**: The first player to enter a match code (e.g. `PLAY7`) probes the relay. If nobody is hosting, they become the authoritative **Host** and play as **X**.
+- **State Authority**: The host holds the single source of truth for:
+  - `room.board`: 9-cell board state
+  - `room.turn`: Active player's turn (`'X'` or `'O'`)
+  - `room.starter`: Player who makes the first move in this round
+  - `room.round`: Current round number (Round 1, 2, 3...)
+  - `room.scores`: Match record (`{ X: wins, O: wins, draws: ties }`)
+  - `room.version`: Monotonically increasing state version
+- **Validation**: All moves and rematch requests are validated by the host to eliminate turn races or board desync.
+- **Session Persistence**: The host token and active room state are cached in `sessionStorage` (`saveHostSession`). If the host refreshes their browser page, they seamlessly reconnect to the same match with zero downtime and without kicking the guest.
+- **Heartbeat**: Broadcasts authoritative state every 2 seconds and on every move.
+
+#### 2. Guest (Player O)
+- **Joining**: The second player to enter the same code hears the host's probe, announces itself with a `hello` packet, and is seated as **O**.
+- **Seat Fingerprint**: The guest is assigned a hashed fingerprint (`seatO`), allowing the guest to refresh their browser tab and immediately reclaim their seat without losing their spot.
+- **Optimistic UI**: When the guest taps a valid empty cell, the mark displays immediately with zero perceived latency. The guest queues a pending move and retries every 1.5s until the host's version confirms it.
+- **Deduplication**: Each action has a unique `actionId`. The host recognizes duplicates and safely re-acknowledges them without duplicating turns.
+
+#### 3. ⚖️ Fair Alternating Starter Rule
+Traditional Tic-Tac-Toe heavily favors the first player (X). To make matches 100% fair across rounds:
+- **Round 1:** Host (**X**) starts first.
+- **Round 2:** Guest (**O**) starts first on the clean board.
+- **Round 3:** Host (**X**) starts first.
+- **Round 4:** Guest (**O**) starts first.
+- Both players see explicit round announcements: `Round 2 • Guest (O) started first` and `Next round: You start first!`.
+
+#### 4. 🏆 Live Scoreboard & Rematches
+- Tracks cumulative **Player X Wins**, **Player O Wins**, and **Ties (Draws)** across consecutive games.
+- Scores persist across rematches until either player taps **Leave Room**.
+- Rematch requests update optimistically: as soon as you tap **Play Again**, your status updates to *"Waiting for opponent..."* or *"Opponent wants a rematch!"*.
+
+#### 5. 🛡️ Mobile App Backgrounding / Refresh Protection
+- In mobile browsers and Telegram Mini App, switching apps (e.g. switching to WhatsApp or Telegram to send an invite link) triggers browser `pagehide`.
+- Destructive room closing on `pagehide` is disabled. The room only closes when a player explicitly taps the **Leave Room** button.
+- If a player loses internet connection, the watchdog heartbeat alerts both players (`Reconnecting…`), and automatically resumes once the network restores.
+
+---
+
+## 🎨 UI / UX Features
+
+- **Sharp 5px Corners**: Clean, modern aesthetic with a uniform `5px` corner radius across cards, tiles, inputs, buttons, and badges.
+- **Compact Mobile-First Layout**: Redesigned to fit completely within mobile viewports (even with browser URL bars or Telegram Mini App frames) with **zero vertical scrolling required**.
+- **Self-Contained Web Audio Synthesizer**: Pure Web Audio API sounds for moves, victory fanfare, draw/loss chords, and button clicks with **0 external downloads**. Includes a one-tap mute toggle button (`🔊 / 🔇`) in the header.
+- **Haptic Vibration**: Physical tactile feedback on moves and wins (`navigator.vibrate` + Telegram Mini App `HapticFeedback`).
+- **One-Tap Share & Random Code**:
+  - `🎲 Random` button on the Home screen to roll instant 5-character match pins.
+  - Native **Web Share API** (`navigator.share`) on mobile to send invite links directly to WhatsApp, Telegram, or SMS, with 1-tap clipboard fallback.
+- **Animated SVG Marks & Strike Line**:
+  - Pop-in SVG cross (`✕`) and circle (`○`) with vibrant neon glow.
+  - Dynamic animated SVG strike-through beam connecting the 3 winning squares.
+
+---
+
+## 🛠️ Project Structure
+
+```text
+tic-tac-toe/
+├── index.html                   # Mobile-optimized viewport, Telegram WebApp script
+├── package.json                 # Scripts: dev, build, preview, test
+├── vite.config.js               # Vite build config with Vue plugin
+├── test/
+│   ├── gameLogic.test.js        # Unit tests for fair turns, score counters, win detection
+│   ├── host-refresh.test.js     # Tests host session persistence in sessionStorage
+│   └── e2e-session.test.js      # End-to-end 2-player MQTT network simulation
+└── src/
+    ├── App.vue                  # Main app shell, sound management, Web Share & routing
+    ├── style.css                # 5px corner radius system, compact mobile styles, cyber-glass theme
+    ├── components/
+    │   ├── HomeScreen.vue       # Match code entry, random code generator, 3-step guide
+    │   ├── LobbyScreen.vue      # Waiting room with radar beacon, copy/share buttons
+    │   └── GameScreen.vue       # Scoreboard, turn banner, 3x3 board, SVG strike line, rematch
+    └── lib/
+        ├── gameLogic.js         # Core rules, alternating starter logic, win calculations
+        ├── gameSession.js       # P2P MQTT client, host/guest protocol, retry/dedup engine
+        ├── player.js            # Player IDs and host session storage
+        ├── sound.js             # Web Audio API sound synthesizer & mute toggle
+        └── telegram.js          # Telegram Mini App wrapper with version safety guards
+```
+
+---
+
+## 🚀 Running Locally
 
 ```bash
+# 1. Install dependencies
 npm install
+
+# 2. Run unit and E2E tests
+npm test
+
+# 3. Start local development server
 npm run dev
 ```
 
-Open the printed URL (usually <http://localhost:5173>). Open it in two browser windows
-(or one normal + one incognito, so each gets its own player id), create a match in the
-first window, then enter the same code in the second.
+Open the printed URL (typically `http://localhost:5173`) in two browser tabs (or one normal and one incognito tab). Enter the same match code in both windows to play 1v1.
 
-The game talks to the same public relays in local development and in production.
-Nothing needs to be configured.
+---
 
-## How it works
+## 🤖 Running as a Telegram Mini App
 
-There is no game server. Both phones connect to a public MQTT broker, and the match code
-is used as the shared channel, so the two browsers talk to each other directly through the
-relay.
+1. Message **@BotFather** on Telegram and run `/newbot` to create your bot.
+2. Run `/newapp`, select your bot, and enter your live URL: `https://ttt-mini.vercel.app`.
+3. Provide a title (e.g. `Tic Tac Toe`) and short name (e.g. `play`).
+4. Set the menu button via `/setmenubutton` pointing to `https://ttt-mini.vercel.app`.
+5. Launch your game instantly directly inside Telegram!
 
-| Step | What happens |
-| --- | --- |
-| Player 1 enters code `1234` | Their browser listens for ~1.6s; if nobody is hosting that code, it becomes the **host** and plays **X** |
-| Player 2 enters `1234` | Their browser hears the host's state, announces itself, and is seated as **O** |
-| Moves | The host validates every move and owns the authoritative board |
-| Board updates | The host broadcasts the full room state on every change and every 2s heartbeat |
-| Rematch | Both players opt in; the host resets the board when both have accepted |
-| Leaving | The host announces a close, or the guest's seat is freed for a new opponent |
+---
 
-Design details:
+## 🌐 Public MQTT WebSocket Relays
 
-- The host is authoritative, so there are no conflicting boards or turn races.
-- Guest moves and rematch votes are retried until the host confirms them, so a dropped
-  relay message cannot silently stall the game. The host ignores duplicate deliveries.
-- If two devices create the same code at the same moment, they compare random host tokens
-  and the smaller token keeps hosting; the other device quietly becomes the guest.
-- A guest can refresh without losing its seat: the published state carries a salted
-  fingerprint of the guest's player id so the browser can confirm it is still seated.
-- Published state never includes raw player ids.
-- If the first broker is unreachable, the client falls back to the next one automatically.
-  The invite link carries `?code=…&b=…` so both players use the same relay.
-
-### Relays
-
-These free public brokers are used in order:
+The game connects to these free public relays in priority order:
 
 1. `wss://broker.emqx.io:8084/mqtt`
 2. `wss://broker.hivemq.com:8884/mqtt`
 3. `wss://mqtt-dashboard.com:8884/mqtt`
-
-Topics look like `tictactoe-mini/v1/room/<CODE>`. Public brokers are best-effort: great for
-playing with friends, not for anything private or competitive. Match codes are guessable,
-so treat them as public rooms.
-
-## Deploy to Vercel
-
-The repo is <https://github.com/NgoytryLyhuor/tic-tac-toe>. Vercel detects Vite:
-
-- Build command: `npm run build`
-- Output directory: `dist`
-
-No environment variables, database, or integration are required. Pushing to `main`
-triggers a deployment, or run `vercel --prod` from the project folder.
-
-## Telegram Mini App (optional)
-
-1. In Telegram, talk to **@BotFather** → `/newbot` to create a bot.
-2. `/newapp` → choose the bot → provide the Vercel URL (must be **https**), a title,
-   and a short name such as `play`.
-3. `/setmenubutton` → attach the same Web App URL.
-4. Open `https://t.me/<your-bot>/play`.
-
-The app calls `Telegram.WebApp.ready()` / `expand()`, uses the Telegram name as a default
-player name, and uses haptic feedback where supported. Opening the site in a normal browser
-works exactly the same.
-
-## Project structure
-
-```text
-src/
-  App.vue                    # screen routing and session lifecycle
-  components/
-    HomeScreen.vue           # code + name entry
-    LobbyScreen.vue          # waiting room, code and invite link
-    GameScreen.vue           # board, result, rematch
-  lib/
-    gameLogic.js             # board rules, room shape, win detection
-    gameSession.js           # MQTT host/guest protocol and relays
-    player.js                # local player id, name, last session
-    telegram.js              # Telegram WebApp wrapper
-  style.css                  # dark glassmorphism theme
-```
-
-## Scripts
-
-```bash
-npm run dev      # local dev server
-npm run build    # production build to dist/
-npm run preview  # preview the production build
-```
