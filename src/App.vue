@@ -3,7 +3,8 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import HomeScreen from './components/HomeScreen.vue'
 import LobbyScreen from './components/LobbyScreen.vue'
 import GameScreen from './components/GameScreen.vue'
-import { api } from './lib/api.js'
+import { GameSession } from './lib/gameSession.js'
+import { normalizeCode } from './lib/gameLogic.js'
 import {
   clearSession,
   getPlayerId,
@@ -24,11 +25,11 @@ const error = ref('')
 const busy = ref(false)
 const loading = ref(false)
 const copied = ref('')
-const storage = ref('')
+const connection = ref('idle')
+const brokerIndex = ref(-1)
 
-const POLL_INTERVAL = 1500
-let pollTimer = null
-let polling = false
+let session = null
+let busyTimer = null
 
 const screen = computed(() => {
   if (!room.value) return 'home'
@@ -37,175 +38,147 @@ const screen = computed(() => {
 
 const inviteUrl = computed(() => {
   if (!room.value) return ''
-  return `${location.origin}${location.pathname}?code=${encodeURIComponent(room.value.code)}`
+  const params = new URLSearchParams({ code: room.value.code })
+  if (brokerIndex.value >= 0) params.set('b', String(brokerIndex.value))
+  return `${location.origin}${location.pathname}?${params.toString()}`
 })
-
-const isDeployed = typeof location !== 'undefined' && !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)
-
-const storageWarning = computed(() => {
-  if (storage.value === 'memory' && isDeployed) {
-    return 'This deployment has no shared room database yet, so two different devices may not see the same match.'
-  }
-  return ''
-})
-
-const storageWarningUrl = computed(() => {
-  if (!storageWarning.value) return ''
-  return 'https://vercel.com/lyhuors-projects/tic-tac-toe/settings/environment-variables'
-})
-
-function normalizeCode(value) {
-  return String(value || '')
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, '')
-    .slice(0, 8)
-}
 
 function syncUrl(nextCode) {
   try {
     const url = new URL(location.href)
     if (nextCode) url.searchParams.set('code', nextCode)
     else url.searchParams.delete('code')
+    url.searchParams.delete('b')
     history.replaceState({}, '', url)
   } catch {
     /* ignore */
   }
 }
 
-function applyRoom(next) {
-  if (!next) return
-  room.value = next
-  if (next.code) code.value = next.code
-  syncUrl(next.code)
-}
-
-function startPolling() {
-  stopPolling()
-  pollTimer = setInterval(poll, POLL_INTERVAL)
-}
-
-function stopPolling() {
-  if (pollTimer) clearInterval(pollTimer)
-  pollTimer = null
-}
-
-async function poll() {
-  const current = room.value
-  if (!current || polling) return
-
-  // Nothing can change while it is your turn, so skip those requests.
-  const shouldPoll =
-    current.status === 'waiting' ||
-    current.status === 'finished' ||
-    (current.status === 'playing' && current.turn !== current.you)
-
-  if (!shouldPoll) return
-
-  polling = true
-  try {
-    const data = await api.state(current.code, playerId)
-    if (room.value && room.value.code === current.code) applyRoom(data.room)
-  } catch (err) {
-    if (err.status === 404) {
-      stopPolling()
-      room.value = null
-      clearSession()
-      syncUrl('')
-      error.value = 'This match has ended. Create or join a new one.'
-    }
-  } finally {
-    polling = false
+function clearBusyTimer() {
+  if (busyTimer) {
+    clearTimeout(busyTimer)
+    busyTimer = null
   }
 }
 
-async function resume(candidateCode) {
-  loading.value = true
-  try {
-    const data = await api.state(candidateCode, playerId)
-    applyRoom(data.room)
-    startPolling()
-  } catch (err) {
-    if (err.status === 404 || err.status === 403) {
-      clearSession()
-      syncUrl('')
-    }
-  } finally {
-    loading.value = false
-  }
+function openSession() {
+  session?.stop()
+
+  session = new GameSession({
+    playerId,
+    onState: (next) => {
+      room.value = next
+      loading.value = false
+      busy.value = false
+      clearBusyTimer()
+
+      if (next) {
+        error.value = ''
+        if (next.code) {
+          code.value = next.code
+          saveSession(next.code)
+          syncUrl(next.code)
+        }
+      }
+    },
+    onStatus: (status) => {
+      connection.value = status
+      if (status === 'connecting' || status === 'probing') {
+        loading.value = !room.value
+      } else if (status === 'reconnecting') {
+        loading.value = !room.value
+      } else {
+        loading.value = false
+      }
+    },
+    onError: (message) => {
+      error.value = message
+    },
+    onBroker: (index) => {
+      brokerIndex.value = index
+    },
+  })
+
+  return session
 }
 
-async function joinMatch() {
-  error.value = ''
-  const nextCode = normalizeCode(code.value)
+function startJoin(nextCode, preferredBroker = -1) {
+  const normalized = normalizeCode(nextCode)
 
-  if (nextCode.length < 3) {
+  if (normalized.length < 3) {
     error.value = 'Please enter a match code with at least 3 characters.'
     return
   }
 
-  busy.value = true
-  try {
-    const data = await api.join(nextCode, playerId, name.value.trim())
-    saveName(name.value.trim())
-    saveSession(nextCode)
-    applyRoom(data.room)
-    startPolling()
-    telegram.haptic('light')
-  } catch (err) {
-    error.value = err.message
-  } finally {
-    busy.value = false
-  }
-}
-
-async function playMove(cell) {
-  if (!room.value || busy.value) return
-  busy.value = true
   error.value = ''
-  try {
-    const data = await api.move(room.value.code, playerId, cell)
-    applyRoom(data.room)
-    telegram.haptic('light')
-  } catch (err) {
-    error.value = err.message
-  } finally {
-    busy.value = false
-  }
+  loading.value = true
+  code.value = normalized
+  saveName(name.value.trim())
+  saveSession(normalized)
+  syncUrl(normalized)
+
+  const active = openSession()
+  active.join(normalized, name.value.trim(), preferredBroker)
 }
 
-async function requestRematch() {
-  if (!room.value || busy.value) return
+function joinMatch() {
+  startJoin(code.value)
+}
+
+function playMove(cell) {
+  if (!session || busy.value) return
+
   busy.value = true
-  error.value = ''
-  try {
-    const data = await api.rematch(room.value.code, playerId)
-    applyRoom(data.room)
-    telegram.haptic('light')
-  } catch (err) {
-    error.value = err.message
-  } finally {
+  const result = session.move(cell)
+
+  if (!result.ok) {
+    error.value = result.error
     busy.value = false
+    return
   }
+
+  clearBusyTimer()
+  busyTimer = setTimeout(() => {
+    busy.value = false
+  }, 1200)
 }
 
-async function leaveMatch() {
-  const current = room.value
-  stopPolling()
+function requestRematch() {
+  if (!session || busy.value) return
+
+  busy.value = true
+  const result = session.rematch()
+
+  if (!result.ok) {
+    error.value = result.error
+    busy.value = false
+    return
+  }
+
+  clearBusyTimer()
+  busyTimer = setTimeout(() => {
+    busy.value = false
+  }, 1200)
+}
+
+function leaveMatch() {
+  session?.leave()
+  session = null
   room.value = null
   error.value = ''
+  loading.value = false
+  busy.value = false
+  connection.value = 'idle'
+  brokerIndex.value = -1
+  clearBusyTimer()
   clearSession()
   syncUrl('')
-  if (current) {
-    try {
-      await api.leave(current.code, playerId)
-    } catch {
-      /* room may already be gone */
-    }
-  }
 }
 
 async function copyText(text, label) {
   if (!text) return
+
   try {
     await navigator.clipboard.writeText(text)
   } catch {
@@ -222,6 +195,7 @@ async function copyText(text, label) {
     }
     document.body.removeChild(area)
   }
+
   copied.value = label
   setTimeout(() => {
     if (copied.value === label) copied.value = ''
@@ -231,44 +205,37 @@ async function copyText(text, label) {
 const copyCode = () => copyText(room.value?.code, 'code')
 const copyLink = () => copyText(inviteUrl.value, 'link')
 
-function onVisibilityChange() {
-  if (document.hidden) {
-    stopPolling()
-  } else if (room.value) {
-    startPolling()
-    poll()
-  }
+function onPageHide() {
+  session?.pageHide()
 }
 
-onMounted(async () => {
-  document.addEventListener('visibilitychange', onVisibilityChange)
+onMounted(() => {
+  window.addEventListener('pagehide', onPageHide)
 
-  try {
-    const health = await api.health()
-    storage.value = health.storage
-  } catch {
-    /* health is only informational */
-  }
-
-  const urlCode = normalizeCode(new URLSearchParams(location.search).get('code'))
+  const params = new URLSearchParams(location.search)
+  const urlCode = normalizeCode(params.get('code'))
+  const preferredBroker = params.has('b') ? Number(params.get('b')) : -1
   const saved = loadSession()
 
   if (urlCode) {
     code.value = urlCode
     if (saved && saved !== urlCode) clearSession()
-    if (saved === urlCode || saved === '') {
-      // Returning player: silently rejoin if the room still knows us.
-      if (loadName() || telegram.user?.first_name) await resume(urlCode)
+
+    if (loadName() || telegram.user?.first_name) {
+      startJoin(urlCode, Number.isFinite(preferredBroker) ? preferredBroker : -1)
     }
     return
   }
 
-  if (saved) await resume(saved)
+  if (saved && (loadName() || telegram.user?.first_name)) {
+    startJoin(saved)
+  }
 })
 
 onBeforeUnmount(() => {
-  stopPolling()
-  document.removeEventListener('visibilitychange', onVisibilityChange)
+  window.removeEventListener('pagehide', onPageHide)
+  session?.stop()
+  clearBusyTimer()
 })
 </script>
 
@@ -277,7 +244,7 @@ onBeforeUnmount(() => {
     <main class="shell">
       <div v-if="loading" class="card loading-card">
         <span class="spinner big" aria-hidden="true"></span>
-        <p>Rejoining your match…</p>
+        <p>Looking for the match…</p>
       </div>
 
       <HomeScreen
@@ -286,8 +253,6 @@ onBeforeUnmount(() => {
         v-model:name="name"
         :busy="busy"
         :error="error"
-        :warning="storageWarning"
-        :warning-url="storageWarningUrl"
         @submit="joinMatch"
       />
 
@@ -297,6 +262,7 @@ onBeforeUnmount(() => {
         :invite-url="inviteUrl"
         :copied="copied"
         :busy="busy"
+        :connection="connection"
         @copy-code="copyCode"
         @copy-link="copyLink"
         @leave="leaveMatch"
@@ -308,6 +274,7 @@ onBeforeUnmount(() => {
         :invite-url="inviteUrl"
         :copied="copied"
         :busy="busy"
+        :connection="connection"
         @move="playMove"
         @rematch="requestRematch"
         @leave="leaveMatch"
@@ -318,9 +285,9 @@ onBeforeUnmount(() => {
     </main>
 
     <footer class="footer">
-      <span>Built for playing with friends</span>
+      <span>No account, no database</span>
       <span class="dot">•</span>
-      <span>Works in any browser or as a Telegram Mini App</span>
+      <span>Just share the code and play</span>
     </footer>
   </div>
 </template>

@@ -6,11 +6,19 @@ const props = defineProps({
   inviteUrl: { type: String, default: '' },
   copied: { type: String, default: '' },
   busy: { type: Boolean, default: false },
+  connection: { type: String, default: 'idle' },
 })
 
 const emit = defineEmits(['copy-code', 'copy-link', 'leave'])
 
 const myName = computed(() => props.room.players?.[props.room.you]?.name || 'You')
+
+const waitingLabel = computed(() => {
+  if (props.connection === 'reconnecting' || props.connection === 'offline') {
+    return 'Reconnecting to the relay…'
+  }
+  return 'Looking for your opponent…'
+})
 </script>
 
 <template>
@@ -54,7 +62,7 @@ const myName = computed(() => props.room.players?.[props.room.you]?.name || 'You
 
     <div class="waiting-row">
       <span class="spinner" aria-hidden="true"></span>
-      <span>Looking for your opponent…</span>
+      <span>{{ waitingLabel }}</span>
     </div>
 
     <button class="btn link danger" type="button" :disabled="props.busy" @click="emit('leave')">

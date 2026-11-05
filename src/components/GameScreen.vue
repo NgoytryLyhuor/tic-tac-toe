@@ -6,6 +6,7 @@ const props = defineProps({
   inviteUrl: { type: String, default: '' },
   copied: { type: String, default: '' },
   busy: { type: Boolean, default: false },
+  connection: { type: String, default: 'idle' },
 })
 
 const emit = defineEmits(['move', 'rematch', 'leave', 'copy-link'])
@@ -14,6 +15,10 @@ const you = computed(() => props.room.you)
 const opponent = computed(() => (you.value === 'X' ? 'O' : 'X'))
 const myName = computed(() => props.room.players?.[you.value]?.name || 'You')
 const opponentName = computed(() => props.room.players?.[opponent.value]?.name || 'Opponent')
+const isHost = computed(() => you.value === 'X')
+const connectionLost = computed(
+  () => props.connection === 'reconnecting' || props.connection === 'offline',
+)
 
 const isPlaying = computed(() => props.room.status === 'playing')
 const isFinished = computed(() => props.room.status === 'finished')
@@ -23,6 +28,10 @@ const winningLine = computed(() => props.room.result?.line || [])
 const statusText = computed(() => {
   if (isFinished.value) return 'Round finished'
   if (!isPlaying.value) return 'Waiting for opponent…'
+  if (isHost.value && props.room.opponentOnline === false) {
+    return 'Waiting for your opponent to reconnect…'
+  }
+  if (connectionLost.value) return 'Reconnecting…'
   return isMyTurn.value ? 'Your turn' : `${opponentName.value}'s turn`
 })
 
@@ -58,6 +67,8 @@ function cellClass(index) {
         Leave
       </button>
     </header>
+
+    <p v-if="connectionLost" class="alert warn">Connection lost — reconnecting…</p>
 
     <div class="players">
       <div class="player" :class="{ active: isPlaying && props.room.turn === 'X', you: you === 'X' }">

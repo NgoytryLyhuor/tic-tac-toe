@@ -4,8 +4,6 @@ const props = defineProps({
   name: { type: String, default: '' },
   busy: { type: Boolean, default: false },
   error: { type: String, default: '' },
-  warning: { type: String, default: '' },
-  warningUrl: { type: String, default: '' },
 })
 
 const emit = defineEmits(['update:code', 'update:name', 'submit'])
@@ -26,7 +24,8 @@ function onCode(event) {
 
     <h1>Tic Tac Toe</h1>
     <p class="lede">
-      Create a match, share the code with a friend, and play together from anywhere.
+      Create a match, share the code with a friend, and play together from anywhere. No sign-up
+      needed.
     </p>
 
     <form class="form" @submit.prevent="emit('submit')">
@@ -66,13 +65,6 @@ function onCode(event) {
         {{ props.busy ? 'Joining…' : 'Create / Join match' }}
       </button>
     </form>
-
-    <p v-if="props.warning" class="alert warn">
-      {{ props.warning }}
-      <a v-if="props.warningUrl" :href="props.warningUrl" target="_blank" rel="noreferrer">
-        Open project settings →
-      </a>
-    </p>
 
     <ol class="steps">
       <li><b>1</b> Enter a code and tap join.</li>
