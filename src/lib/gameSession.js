@@ -25,6 +25,7 @@ const TOPIC_PREFIX = 'tictactoe-mini/v1/room/'
 const PROBE_DELAY = 1600
 const HEARTBEAT_MS = 2000
 const PING_MS = 5000
+const RETRY_MS = 1500
 const HOST_SILENCE_MS = 9000
 const GUEST_SILENCE_MS = 15000
 
@@ -57,6 +58,8 @@ export class GameSession {
     this.rejected = false
     this.stopped = false
     this.generation = 0
+    this.pending = null
+    this.lastGuestActionId = ''
     this.probeTimer = null
     this.heartbeatTimer = null
     this.timers = new Set()
@@ -95,6 +98,7 @@ export class GameSession {
 
       this.setInterval(() => this.tick(), PING_MS)
       this.setInterval(() => this.watch(), 2000)
+      this.setInterval(() => this.sendPending(), RETRY_MS)
     } catch (error) {
       if (this.stopped) return
       this.onStatus('error')
@@ -227,13 +231,52 @@ export class GameSession {
   }
 
   publish(payload, qos = 0) {
-    if (!this.client || !this.client.connected) return
+    if (!this.client || !this.client.connected) return false
     const message = { ...payload, from: this.instanceId, at: Date.now() }
     try {
       this.client.publish(this.topic, JSON.stringify(message), { qos })
+      return true
     } catch {
-      /* ignore */
+      return false
     }
+  }
+
+  sendPending(force = false) {
+    const pending = this.pending
+    if (!pending) return
+    if (this.isHost || !this.client?.connected) return
+
+    const now = Date.now()
+    if (!force && now - pending.sentAt < RETRY_MS - 200) return
+
+    pending.sentAt = now
+    pending.attempts += 1
+
+    if (pending.kind === 'move') {
+      this.publish(
+        { type: 'move', playerId: this.playerId, cell: pending.cell, actionId: pending.id },
+        1,
+      )
+    } else if (pending.kind === 'rematch') {
+      this.publish({ type: 'rematch', playerId: this.playerId, actionId: pending.id }, 1)
+    }
+  }
+
+  queuePending(kind, data = {}) {
+    if (this.pending && this.pending.kind === kind) return
+    this.pending = {
+      kind,
+      ...data,
+      id: randomId(),
+      baseVersion: this.room?.version || 0,
+      sentAt: 0,
+      attempts: 0,
+    }
+    this.sendPending(true)
+  }
+
+  clearPending() {
+    this.pending = null
   }
 
   publishState() {
@@ -282,6 +325,9 @@ export class GameSession {
         break
       case 'error':
         if (!message.to || message.to === this.playerId) {
+          if (message.actionId && message.actionId === this.pending?.id) {
+            this.clearPending()
+          }
           this.onError(message.message || 'Something went wrong.')
         }
         break
@@ -289,6 +335,7 @@ export class GameSession {
         if (message.to && message.to !== this.playerId) return
         this.rejected = true
         this.clearProbe()
+        this.clearPending()
         this.room = null
         this.onState(null)
         this.onStatus('closed')
@@ -296,6 +343,7 @@ export class GameSession {
         break
       case 'closed':
         if (this.isHost) return
+        this.clearPending()
         this.room = null
         this.onState(null)
         this.onStatus('closed')
@@ -335,6 +383,10 @@ export class GameSession {
     this.offline = false
     this.lastStateAt = Date.now()
     this.room = { ...wire, you: 'O' }
+
+    // Any accepted action bumps the host's version, which confirms our pending move/rematch.
+    if (this.pending && Number(wire.version) > this.pending.baseVersion) this.clearPending()
+
     this.onState(this.room)
     this.onStatus('guest')
 
@@ -354,6 +406,7 @@ export class GameSession {
     }
 
     if (!this.room.players.O) {
+      this.lastGuestActionId = ''
       seatGuest(this.room, message.playerId, message.name)
       this.emitState()
       this.publishState()
@@ -370,12 +423,27 @@ export class GameSession {
     this.guestLastSeen = Date.now()
     this.room.opponentOnline = true
 
-    const result = applyMove(this.room, 'O', message.cell)
-    if (!result.ok) {
-      this.publish({ type: 'error', to: message.playerId, message: result.error }, 1)
+    // The guest retries until it sees a newer state. Re-ack duplicates instead of failing them.
+    if (message.actionId && message.actionId === this.lastGuestActionId) {
+      this.publishState()
       return
     }
 
+    const result = applyMove(this.room, 'O', message.cell)
+    if (!result.ok) {
+      this.publish(
+        {
+          type: 'error',
+          to: message.playerId,
+          message: result.error,
+          actionId: message.actionId || null,
+        },
+        1,
+      )
+      return
+    }
+
+    this.lastGuestActionId = message.actionId || ''
     this.emitState()
     this.publishState()
   }
@@ -383,8 +451,15 @@ export class GameSession {
   handleGuestRematch(message) {
     if (!this.isHost || !this.room) return
     if (!this.room.players.O || message.playerId !== this.room.players.O.id) return
+
+    if (message.actionId && message.actionId === this.lastGuestActionId) {
+      this.publishState()
+      return
+    }
+
     if (!requestRematch(this.room, 'O').ok) return
 
+    this.lastGuestActionId = message.actionId || ''
     this.emitState()
     this.publishState()
   }
@@ -393,6 +468,7 @@ export class GameSession {
     if (!this.isHost || !this.room) return
     if (!this.room.players.O || message.playerId !== this.room.players.O.id) return
 
+    this.lastGuestActionId = ''
     resetForWaiting(this.room)
     this.emitState()
     this.publishState()
@@ -408,7 +484,9 @@ export class GameSession {
     if (this.isHost || this.stopped || this.rejected) return
 
     this.clearProbe()
+    this.clearPending()
     this.isHost = true
+    this.lastGuestActionId = ''
     this.hostToken = randomId()
     this.room = createRoom(this.code, this.playerId, this.name, this.hostToken)
     this.room.opponentOnline = false
@@ -422,6 +500,8 @@ export class GameSession {
     this.isHost = false
     this.room = null
     this.hostToken = ''
+    this.lastGuestActionId = ''
+    this.clearPending()
     this.stopHeartbeat()
     this.onState(null)
     this.sendHello()
@@ -479,7 +559,8 @@ export class GameSession {
       return { ok: true }
     }
 
-    this.publish({ type: 'move', playerId: this.playerId, cell }, 1)
+    if (this.pending?.kind === 'move') return { ok: true }
+    this.queuePending('move', { cell })
     return { ok: true }
   }
 
@@ -494,7 +575,8 @@ export class GameSession {
       return { ok: true }
     }
 
-    this.publish({ type: 'rematch', playerId: this.playerId }, 1)
+    if (this.pending?.kind === 'rematch') return { ok: true }
+    this.queuePending('rematch')
     return { ok: true }
   }
 
@@ -527,6 +609,8 @@ export class GameSession {
     this.guestLastSeen = 0
     this.offline = false
     this.rejected = false
+    this.clearPending()
+    this.lastGuestActionId = ''
   }
 
   pageHide() {
@@ -556,6 +640,8 @@ export class GameSession {
     this.guestLastSeen = 0
     this.offline = false
     this.rejected = false
+    this.clearPending()
+    this.lastGuestActionId = ''
   }
 
   clearProbe() {

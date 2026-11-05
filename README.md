@@ -43,6 +43,8 @@ relay.
 Design details:
 
 - The host is authoritative, so there are no conflicting boards or turn races.
+- Guest moves and rematch votes are retried until the host confirms them, so a dropped
+  relay message cannot silently stall the game. The host ignores duplicate deliveries.
 - If two devices create the same code at the same moment, they compare random host tokens
   and the smaller token keeps hosting; the other device quietly becomes the guest.
 - A guest can refresh without losing its seat: the published state carries a salted
