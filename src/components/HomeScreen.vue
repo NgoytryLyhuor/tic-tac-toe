@@ -5,6 +5,7 @@ const props = defineProps({
   busy: { type: Boolean, default: false },
   error: { type: String, default: '' },
   warning: { type: String, default: '' },
+  warningUrl: { type: String, default: '' },
 })
 
 const emit = defineEmits(['update:code', 'update:name', 'submit'])
@@ -66,7 +67,12 @@ function onCode(event) {
       </button>
     </form>
 
-    <p v-if="props.warning" class="alert warn">{{ props.warning }}</p>
+    <p v-if="props.warning" class="alert warn">
+      {{ props.warning }}
+      <a v-if="props.warningUrl" :href="props.warningUrl" target="_blank" rel="noreferrer">
+        Open project settings →
+      </a>
+    </p>
 
     <ol class="steps">
       <li><b>1</b> Enter a code and tap join.</li>

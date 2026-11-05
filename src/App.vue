@@ -44,9 +44,14 @@ const isDeployed = typeof location !== 'undefined' && !/^(localhost|127\.0\.0\.1
 
 const storageWarning = computed(() => {
   if (storage.value === 'memory' && isDeployed) {
-    return 'This deployment has no shared room database, so two different devices may not see the same match. Add Upstash Redis environment variables in Vercel — see the README.'
+    return 'This deployment has no shared room database yet, so two different devices may not see the same match.'
   }
   return ''
+})
+
+const storageWarningUrl = computed(() => {
+  if (!storageWarning.value) return ''
+  return 'https://vercel.com/lyhuors-projects/tic-tac-toe/settings/environment-variables'
 })
 
 function normalizeCode(value) {
@@ -282,6 +287,7 @@ onBeforeUnmount(() => {
         :busy="busy"
         :error="error"
         :warning="storageWarning"
+        :warning-url="storageWarningUrl"
         @submit="joinMatch"
       />
 

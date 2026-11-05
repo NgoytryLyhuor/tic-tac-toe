@@ -3,6 +3,14 @@
 A tiny online tic-tac-toe game. One player creates a match with a code (for example `1234`),
 sends that code to a friend, and the friend enters the same code to join the same board.
 
+**Live:** <https://tic-tac-toe-ivory-eta-13.vercel.app>
+**Repo:** <https://github.com/NgoytryLyhuor/tic-tac-toe>
+
+> One-time step for the live deployment: the free Upstash Redis database must be connected
+> in Vercel so both players share the same room across serverless instances. Until then the
+> app shows a warning banner and rooms are stored per-instance (not reliable). See
+> [Add shared storage](#3-add-shared-storage-required-for-real-two-device-play).
+
 - **Frontend:** Vue 3 + Vite
 - **API:** one serverless function (`api/game.js`), works locally and on Vercel
 - **Storage:** Upstash Redis over REST in production (in-memory fallback for local dev)

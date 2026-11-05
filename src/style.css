@@ -311,6 +311,13 @@ input:focus {
   color: #ffe3a3;
 }
 
+.alert a {
+  color: #fff3c4;
+  font-weight: 700;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+
 .alert.floating {
   margin-top: 4px;
   text-align: center;
