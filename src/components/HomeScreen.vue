@@ -17,20 +17,17 @@ function onCode(event) {
 
 <template>
   <section class="card home">
-    <div class="brand-hero">
-      <div class="brand-badge x-badge">
-        <span>✕</span>
+    <div class="home-head">
+      <div class="brand-hero">
+        <span class="brand-badge x-badge">✕</span>
+        <span class="brand-vs">VS</span>
+        <span class="brand-badge o-badge">○</span>
       </div>
-      <div class="brand-vs">VS</div>
-      <div class="brand-badge o-badge">
-        <span>○</span>
+      <div>
+        <h1>Tic Tac Toe</h1>
+        <p class="lede">Fast 1v1 online. Share code to play.</p>
       </div>
     </div>
-
-    <h1>Tic Tac Toe</h1>
-    <p class="lede">
-      Fast 1v1 online multiplayer. Create a match, share the code with a friend, and play from anywhere on mobile or desktop.
-    </p>
 
     <form class="form" @submit.prevent="emit('submit')">
       <div class="field">
@@ -42,7 +39,7 @@ function onCode(event) {
             title="Generate random code"
             @click="emit('random-code')"
           >
-            <span class="dice-icon">🎲</span> Random Code
+            <span class="dice-icon">🎲</span> Random
           </button>
         </div>
         <div class="input-wrap">
@@ -55,15 +52,15 @@ function onCode(event) {
             autocapitalize="characters"
             spellcheck="false"
             maxlength="8"
-            placeholder="e.g. PLAY7"
+            placeholder="CODE1"
             @input="onCode"
           />
         </div>
-        <small>Enter any code. If the match doesn't exist yet, you host it. If it does, you join it.</small>
+        <small>Enter any code to host or join an existing match.</small>
       </div>
 
       <label class="field">
-        <span>Your nickname <em>(optional)</em></span>
+        <span>Nickname <em>(optional)</em></span>
         <input
           :value="props.name"
           type="text"
@@ -93,15 +90,15 @@ function onCode(event) {
     <ol class="steps">
       <li>
         <span class="step-num">1</span>
-        <span>Type or roll a code and tap <b>Start</b></span>
+        <span>Enter or roll a code and tap <b>Start</b></span>
       </li>
       <li>
         <span class="step-num">2</span>
-        <span>Send the code or 1-tap invite link to your friend</span>
+        <span>Share the code or invite link with a friend</span>
       </li>
       <li>
         <span class="step-num">3</span>
-        <span>They open the link — game begins instantly</span>
+        <span>They join — play starts instantly</span>
       </li>
     </ol>
   </section>

@@ -6,6 +6,14 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+async function waitFor(fn, maxTries = 40, interval = 100) {
+  for (let i = 0; i < maxTries; i += 1) {
+    if (fn()) return true
+    await wait(interval)
+  }
+  return fn()
+}
+
 test('GameSession two-player fair rematch flow', async (t) => {
   const code = `T${Date.now().toString(36).slice(-5).toUpperCase()}`
   let hostState = null
@@ -28,20 +36,13 @@ test('GameSession two-player fair rematch flow', async (t) => {
 
   // 1. Host joins
   await hostSession.join(code, 'HostAlice', 0)
-  // Wait for probe to become host
-  for (let i = 0; i < 30; i += 1) {
-    if (hostSession.isHost && hostState) break
-    await wait(100)
-  }
+  await waitFor(() => hostSession.isHost && hostState?.status === 'waiting')
   assert.ok(hostSession.isHost, 'Should become host')
   assert.equal(hostState.status, 'waiting')
 
   // 2. Guest joins
   await guestSession.join(code, 'GuestBob', 0)
-  for (let i = 0; i < 30; i += 1) {
-    if (guestState?.status === 'playing' && hostState?.status === 'playing') break
-    await wait(150)
-  }
+  await waitFor(() => guestState?.status === 'playing' && hostState?.status === 'playing')
 
   assert.equal(hostState.status, 'playing')
   assert.equal(guestState.status, 'playing')
@@ -51,19 +52,19 @@ test('GameSession two-player fair rematch flow', async (t) => {
 
   // Round 1: X moves 0, O moves 3, X moves 1, O moves 4, X moves 2 (X wins)
   assert.ok(hostSession.move(0).ok)
-  await wait(300)
+  await waitFor(() => guestState?.turn === 'O')
   assert.ok(guestSession.move(3).ok)
-  await wait(300)
+
+  await waitFor(() => hostState?.turn === 'X' && hostState?.board[3] === 'O')
   assert.ok(hostSession.move(1).ok)
-  await wait(300)
+
+  await waitFor(() => guestState?.turn === 'O' && guestState?.board[1] === 'X')
   assert.ok(guestSession.move(4).ok)
-  await wait(300)
+
+  await waitFor(() => hostState?.turn === 'X' && hostState?.board[4] === 'O')
   assert.ok(hostSession.move(2).ok)
 
-  for (let i = 0; i < 20; i += 1) {
-    if (hostState?.status === 'finished' && guestState?.status === 'finished') break
-    await wait(150)
-  }
+  await waitFor(() => hostState?.status === 'finished' && guestState?.status === 'finished')
 
   assert.equal(hostState.result?.winner, 'X')
   assert.equal(guestState.result?.winner, 'X')
@@ -74,13 +75,11 @@ test('GameSession two-player fair rematch flow', async (t) => {
   hostSession.rematch()
   guestSession.rematch()
 
-  for (let i = 0; i < 40; i += 1) {
-    if (
+  await waitFor(
+    () =>
       hostState?.status === 'playing' && hostState?.round === 2 &&
       guestState?.status === 'playing' && guestState?.round === 2
-    ) break
-    await wait(150)
-  }
+  )
 
   assert.equal(hostState.round, 2, 'Must be Round 2')
   assert.equal(hostState.starter, 'O', 'Round 2 starter must be Guest O')
@@ -95,11 +94,7 @@ test('GameSession two-player fair rematch flow', async (t) => {
   const guestMove = guestSession.move(4)
   assert.ok(guestMove.ok, 'Guest moves first successfully')
 
-  for (let i = 0; i < 20; i += 1) {
-    if (hostState?.board[4] === 'O') break
-    await wait(150)
-  }
-
+  await waitFor(() => hostState?.board[4] === 'O')
   assert.equal(hostState.board[4], 'O', 'Host receives Guest move at 4')
   assert.equal(hostState.turn, 'X', 'Now it is Host turn')
 })

@@ -17,7 +17,7 @@ const waitingLabel = computed(() => {
   if (props.connection === 'reconnecting' || props.connection === 'offline') {
     return 'Reconnecting to peer relay…'
   }
-  return 'Waiting for friend to join the match…'
+  return 'Waiting for friend to join…'
 })
 </script>
 
@@ -38,22 +38,22 @@ const waitingLabel = computed(() => {
         <span>Room Code</span>
         <span class="code-hint">Tap to copy</span>
       </div>
-      <button class="code-display interactive" type="button" @click="emit('copy-code')">
+      <button class="code-display interactive" type="button" title="Tap to copy code" @click="emit('copy-code')">
         <span v-for="(char, index) in props.room.code" :key="index" class="code-char">{{ char }}</span>
       </button>
       <div v-if="props.copied === 'code'" class="copied-banner">
-        Code copied to clipboard! ✓
+        Code copied! ✓
       </div>
     </div>
 
     <div class="actions share-actions">
       <button class="btn primary share-btn" type="button" @click="emit('share')">
         <span class="icon">🔗</span>
-        <span>Share Invite Link</span>
+        <span>Share Link</span>
       </button>
       <button class="btn ghost copy-btn" type="button" @click="emit('copy-code')">
         <span class="icon">📋</span>
-        <span>{{ props.copied === 'code' ? 'Code Copied ✓' : 'Copy Code' }}</span>
+        <span>{{ props.copied === 'code' ? 'Copied ✓' : 'Copy Code' }}</span>
       </button>
     </div>
 
@@ -76,7 +76,7 @@ const waitingLabel = computed(() => {
         </div>
         <div class="slot-info">
           <strong>Waiting…</strong>
-          <span class="slot-tag waiting-text">Open link to join</span>
+          <span class="slot-tag waiting-text">Open to join</span>
         </div>
       </div>
     </div>
@@ -87,7 +87,7 @@ const waitingLabel = computed(() => {
     </div>
 
     <div class="lobby-footer">
-      <button class="btn link danger" type="button" :disabled="props.busy" @click="emit('leave')">
+      <button class="btn link danger small" type="button" :disabled="props.busy" @click="emit('leave')">
         Leave Room
       </button>
     </div>

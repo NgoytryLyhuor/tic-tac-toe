@@ -52,15 +52,15 @@ const statusBanner = computed(() => {
     return { text: 'Waiting for match to resume…', type: 'neutral' }
   }
   if (isHost.value && props.room.opponentOnline === false) {
-    return { text: 'Opponent disconnected. Waiting to reconnect…', type: 'warn' }
+    return { text: 'Opponent disconnected. Waiting…', type: 'warn' }
   }
   if (connectionLost.value) {
-    return { text: 'Reconnecting to game relay…', type: 'warn' }
+    return { text: 'Reconnecting to relay…', type: 'warn' }
   }
   if (isMyTurn.value) {
-    return { text: 'Your Turn — Tap any open square', type: 'turn-mine' }
+    return { text: 'Your Turn — Tap open square', type: 'turn-mine' }
   }
-  return { text: `Waiting for ${opponentName.value} to move…`, type: 'turn-theirs' }
+  return { text: `Waiting for ${opponentName.value}…`, type: 'turn-theirs' }
 })
 
 const rematchVoted = computed(() => Boolean(props.room.rematch?.[you.value]))
@@ -100,7 +100,7 @@ function cellClass(index) {
 
 <template>
   <section class="card game">
-    <!-- Header: Code Pill, Share & Leave -->
+    <!-- Header: Code Chip, Share & Leave -->
     <header class="game-top">
       <button
         class="code-chip"
@@ -110,7 +110,7 @@ function cellClass(index) {
       >
         <span class="chip-label">Room</span>
         <strong class="chip-val">{{ props.room.code }}</strong>
-        <span v-if="props.copied === 'link'" class="chip-flash">copied ✓</span>
+        <span v-if="props.copied === 'link'" class="chip-flash">✓</span>
       </button>
 
       <div class="top-nav-right">
@@ -134,7 +134,7 @@ function cellClass(index) {
     </header>
 
     <p v-if="connectionLost" class="alert warn" role="alert">
-      Connection lost — reconnecting to relay…
+      Connection lost — reconnecting…
     </p>
 
     <!-- Scoreboard & Match Info -->
@@ -275,7 +275,7 @@ function cellClass(index) {
 
         <div class="next-round-info">
           <span class="fair-icon">⚖️</span>
-          <span>Next round: <b>{{ nextStarterName }}</b> ({{ nextStarter }}) starts first</span>
+          <span>Next: <b>{{ nextStarterName }}</b> ({{ nextStarter }}) starts first</span>
         </div>
       </div>
 
@@ -293,16 +293,16 @@ function cellClass(index) {
 
         <div v-else class="waiting-rematch">
           <span class="spinner" aria-hidden="true"></span>
-          <span>{{ opponentVoted ? 'Starting next round…' : 'Waiting for opponent to accept…' }}</span>
+          <span>{{ opponentVoted ? 'Starting next round…' : 'Waiting for opponent…' }}</span>
         </div>
       </div>
     </div>
 
     <!-- Quick Footer Invite Link -->
     <p class="invite-footer">
-      Invite a friend:
+      Invite friend:
       <button class="inline-link" type="button" @click="emit('share')">
-        {{ props.copied === 'link' ? 'Copied link ✓' : 'Share invite link 🔗' }}
+        {{ props.copied === 'link' ? 'Copied ✓' : 'Share link 🔗' }}
       </button>
     </p>
   </section>
