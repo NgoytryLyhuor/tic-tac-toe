@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
   applyMovePawn,
   applyPlaceWall,
@@ -61,6 +61,12 @@ function restartGame() {
   isAiThinking.value = false
 }
 
+const p0 = computed(() => state.value.pawns[0])
+const p1 = computed(() => state.value.pawns[1])
+const walls0 = computed(() => state.value.wallsLeft[0])
+const walls1 = computed(() => state.value.wallsLeft[1])
+const currentWalls = computed(() => state.value.wallsLeft[state.value.turn])
+
 // Current legal moves for pawn
 const legalMoves = computed(() => {
   if (state.value.winner !== null) return []
@@ -83,8 +89,9 @@ const isMyTurn = computed(() => {
 function onCellClick(r, c) {
   if (!isMyTurn.value || isAiThinking.value) return
 
-  // In move mode: check if tapped cell is legal
+  // In move mode or tapping legal target: move pawn
   if (isCellLegalMove(r, c)) {
+    actionMode.value = 'move'
     const res = applyMovePawn(state.value, r, c)
     if (res.ok) {
       telegram.haptic('light')
@@ -104,8 +111,9 @@ function onCellClick(r, c) {
 // Execute Wall Placement
 function onIntersectionClick(r, c) {
   if (!isMyTurn.value || isAiThinking.value) return
-  if (actionMode.value !== 'wall') {
-    actionMode.value = 'wall'
+  if (currentWalls.value <= 0) {
+    showToast('No walls remaining!')
+    return
   }
 
   const valid = isValidWallPlacement(state.value, r, c, wallOrientation.value)
@@ -120,13 +128,18 @@ function onIntersectionClick(r, c) {
   if (res.ok) {
     telegram.haptic('light')
     playWallDropSound()
-    // Auto return to move mode for convenience
+    // Auto return to move mode for smooth flow
     actionMode.value = 'move'
   } else {
     telegram.haptic('error')
     playInvalidSound()
     showToast(res.error)
   }
+}
+
+function isWallValid(r, c) {
+  if (!isMyTurn.value || isAiThinking.value || currentWalls.value <= 0) return false
+  return isValidWallPlacement(state.value, r, c, wallOrientation.value)
 }
 
 function toggleOrientation() {
@@ -139,6 +152,33 @@ function toggleActionMode(mode) {
   playClickSound()
   telegram.haptic('light')
   actionMode.value = mode
+}
+
+// Positioning styles for Placed Walls
+function getPlacedWallStyle(w) {
+  if (w.orientation === 'H') {
+    return {
+      top: `calc(var(--p) + ${(w.row + 1)} * var(--cell) + ${w.row} * var(--g) - 1.5px)`,
+      left: `calc(var(--p) + ${w.col} * (var(--cell) + var(--g)))`,
+      width: `calc(2 * var(--cell) + var(--g))`,
+      height: `calc(var(--g) + 3px)`,
+    }
+  } else {
+    return {
+      top: `calc(var(--p) + ${w.row} * (var(--cell) + var(--g)))`,
+      left: `calc(var(--p) + ${(w.col + 1)} * var(--cell) + ${w.col} * var(--g) - 1.5px)`,
+      height: `calc(2 * var(--cell) + var(--g))`,
+      width: `calc(var(--g) + 3px)`,
+    }
+  }
+}
+
+// Positioning styles for Touch Targets
+function getTouchTargetStyle(r, c) {
+  return {
+    top: `calc(var(--p) + ${(r + 1)} * var(--cell) + ${(r + 0.5)} * var(--g))`,
+    left: `calc(var(--p) + ${(c + 1)} * var(--cell) + ${(c + 0.5)} * var(--g))`,
+  }
 }
 
 // AI Turn Automation
@@ -182,67 +222,21 @@ watch(
 const turnBannerText = computed(() => {
   if (state.value.winner !== null) {
     if (gameMode.value === 'ai') {
-      return state.value.winner === 0 ? '🏆 You Won!' : '🤖 AI Won this round!'
+      return state.value.winner === 0 ? '🏆 Victory! You reached the goal!' : '🤖 AI Won this round!'
     }
     return state.value.winner === 0 ? '🏆 Red Player Won!' : '🏆 Blue Player Won!'
   }
   if (isAiThinking.value) {
     return '🤖 AI is planning next move…'
   }
+  if (actionMode.value === 'wall') {
+    return '🧱 Wall Mode: Tap any golden dot to drop wall'
+  }
   if (gameMode.value === 'pass') {
-    return state.value.turn === 0 ? "Red's Turn — Move or place wall" : "Blue's Turn — Move or place wall"
+    return state.value.turn === 0 ? "Red's Turn — Tap green square to move" : "Blue's Turn — Tap green square to move"
   }
-  return state.value.turn === 0 ? 'Your Turn — Move or place wall' : 'Opponent Turn…'
+  return 'Your Turn — Tap green square to move'
 })
-
-function getHWallStyle(r, c) {
-  const top = (r * 100) / 9
-  const left = ((c - 1) * 100) / 9
-  const width = 200 / 9
-  return {
-    top: `calc(${top}% - 3.5px)`,
-    left: `calc(${left}% + 4px)`,
-    width: `calc(${width}% - 8px)`,
-  }
-}
-
-function getVWallStyle(r, c) {
-  const left = (c * 100) / 9
-  const top = ((r - 1) * 100) / 9
-  const height = 200 / 9
-  return {
-    left: `calc(${left}% - 3.5px)`,
-    top: `calc(${top}% + 4px)`,
-    height: `calc(${height}% - 8px)`,
-  }
-}
-
-function getIntersectionStyle(r, c) {
-  const top = (r * 100) / 9
-  const left = (c * 100) / 9
-  return {
-    top: `calc(${top}% - 10px)`,
-    left: `calc(${left}% - 10px)`,
-  }
-}
-
-const p0 = computed(() => state.value.pawns[0])
-const p1 = computed(() => state.value.pawns[1])
-const walls0 = computed(() => state.value.wallsLeft[0])
-const walls1 = computed(() => state.value.wallsLeft[1])
-const currentWalls = computed(() => state.value.wallsLeft[state.value.turn])
-
-function hasHWall(r, c) {
-  return state.value.walls.some((w) => w.orientation === 'H' && w.row === r && w.col === c)
-}
-
-function hasVWall(r, c) {
-  return state.value.walls.some((w) => w.orientation === 'V' && w.row === r && w.col === c)
-}
-
-function hasIntersectionWall(r, c) {
-  return state.value.walls.some((w) => w.row === r && w.col === c)
-}
 </script>
 
 <template>
@@ -333,7 +327,7 @@ function hasIntersectionWall(r, c) {
       </button>
     </section>
 
-    <!-- Main Game Board -->
+    <!-- Main Game Screen -->
     <section v-else class="card game-card">
       <!-- Top Bar -->
       <header class="barricade-top">
@@ -348,45 +342,68 @@ function hasIntersectionWall(r, c) {
         </button>
       </header>
 
-      <!-- Player Racks (Walls remaining) -->
+      <!-- Player HUD: Beautiful dual-cards with avatars, turns & wall racks -->
       <div class="racks-row">
-        <!-- Player 0 (Bottom / Red) -->
-        <div class="rack-badge" :class="{ active: state.turn === 0 }">
-          <span class="pawn-pip red-pip"></span>
-          <span class="rack-name">{{ gameMode === 'ai' ? 'You' : 'Red' }}</span>
-          <div class="wall-sticks">
-            <span
-              v-for="w in walls0"
-              :key="w"
-              class="wall-stick red"
-            ></span>
+        <!-- Player 0 (Red / You) -->
+        <div class="player-hud" :class="{ active: state.turn === 0, winner: state.winner === 0 }">
+          <div class="hud-left">
+            <span class="pawn-pip red-pip"></span>
+            <div class="hud-info">
+              <strong class="hud-name">{{ gameMode === 'ai' ? 'You' : 'Red' }}</strong>
+              <span class="hud-status">{{ state.turn === 0 ? 'Your Turn' : 'Waiting' }}</span>
+            </div>
           </div>
-          <span class="rack-num">{{ walls0 }}</span>
+          <div class="wall-rack" title="Walls Remaining">
+            <div class="wall-sticks">
+              <span
+                v-for="i in 10"
+                :key="i"
+                class="wall-stick red-stick"
+                :class="{ spent: i > walls0 }"
+              ></span>
+            </div>
+            <span class="wall-count">{{ walls0 }}</span>
+          </div>
         </div>
 
-        <!-- Player 1 (Top / Blue) -->
-        <div class="rack-badge" :class="{ active: state.turn === 1 }">
-          <span class="pawn-pip blue-pip"></span>
-          <span class="rack-name">{{ gameMode === 'ai' ? 'AI' : 'Blue' }}</span>
-          <div class="wall-sticks">
-            <span
-              v-for="w in walls1"
-              :key="w"
-              class="wall-stick blue"
-            ></span>
+        <!-- Player 1 (Blue / AI) -->
+        <div class="player-hud" :class="{ active: state.turn === 1, winner: state.winner === 1 }">
+          <div class="hud-left">
+            <span class="pawn-pip blue-pip"></span>
+            <div class="hud-info">
+              <strong class="hud-name">{{ gameMode === 'ai' ? 'AI' : 'Blue' }}</strong>
+              <span class="hud-status">{{ state.turn === 1 ? 'AI Turn' : 'Waiting' }}</span>
+            </div>
           </div>
-          <span class="rack-num">{{ walls1 }}</span>
+          <div class="wall-rack" title="Walls Remaining">
+            <div class="wall-sticks">
+              <span
+                v-for="i in 10"
+                :key="i"
+                class="wall-stick blue-stick"
+                :class="{ spent: i > walls1 }"
+              ></span>
+            </div>
+            <span class="wall-count">{{ walls1 }}</span>
+          </div>
         </div>
       </div>
 
       <!-- Turn & Status Banner -->
-      <div class="turn-banner" :class="{ 'turn-mine': isMyTurn, warn: isAiThinking }">
+      <div
+        class="turn-banner"
+        :class="{
+          'turn-mine': isMyTurn && actionMode === 'move',
+          warn: isAiThinking || actionMode === 'wall',
+          win: state.winner !== null,
+        }"
+      >
         <span v-if="isAiThinking" class="spinner small" aria-hidden="true"></span>
         <span class="banner-text">{{ turnBannerText }}</span>
       </div>
 
-      <!-- 9x9 Board -->
-      <div class="board-container">
+      <!-- 9x9 Board with Grooves & Placed Barricades -->
+      <div class="board-container" style="--p: 6px; --g: 5px; --cell: calc((100% - 52px) / 9);">
         <div class="quoridor-grid">
           <!-- 81 Squares (9x9) -->
           <template v-for="r in 9" :key="`row-${r}`">
@@ -394,91 +411,76 @@ function hasIntersectionWall(r, c) {
               v-for="c in 9"
               :key="`cell-${r-1}-${c-1}`"
               type="button"
-              class="q-cell"
+              class="grid-cell"
               :class="{
-                'has-p0': p0.row === r - 1 && p0.col === c - 1,
-                'has-p1': p1.row === r - 1 && p1.col === c - 1,
-                legal: isCellLegalMove(r - 1, c - 1),
-                target0: r - 1 === 0,
-                target1: r - 1 === 8,
+                'target-row-0': r - 1 === 0,
+                'target-row-8': r - 1 === 8,
+                'legal-target': isCellLegalMove(r - 1, c - 1),
               }"
               :disabled="!isCellLegalMove(r - 1, c - 1) && !(p0.row === r - 1 && p0.col === c - 1) && !(p1.row === r - 1 && p1.col === c - 1)"
+              :aria-label="`Row ${r}, Col ${c}`"
               @click="onCellClick(r - 1, c - 1)"
             >
               <!-- Pawn 0 (Red / You) -->
               <span
                 v-if="p0.row === r - 1 && p0.col === c - 1"
                 class="pawn red-pawn"
+                title="Your Pawn"
               ></span>
-              <!-- Pawn 1 (Blue / Opponent) -->
+              <!-- Pawn 1 (Blue / AI) -->
               <span
                 v-else-if="p1.row === r - 1 && p1.col === c - 1"
                 class="pawn blue-pawn"
+                title="Opponent Pawn"
               ></span>
               <!-- Legal Move Hint Dot -->
               <span
                 v-else-if="isCellLegalMove(r - 1, c - 1)"
-                class="move-hint"
+                class="legal-indicator"
               ></span>
             </button>
           </template>
         </div>
 
-        <!-- Horizontal Walls (8 rows x 8 cols) -->
-        <div class="h-walls-overlay">
-          <template v-for="r in 8" :key="`hw-r-${r}`">
-            <span
-              v-for="c in 8"
-              :key="`hw-${r-1}-${c-1}`"
-              class="wall-slot h-slot"
-              :class="{ placed: hasHWall(r - 1, c - 1) }"
-              :style="getHWallStyle(r, c)"
-            ></span>
-          </template>
-        </div>
+        <!-- Rendered Placed Barricades (High Visibility 3D Wooden Walls) -->
+        <div
+          v-for="(w, idx) in state.walls"
+          :key="`placed-${idx}`"
+          class="placed-wall"
+          :class="[w.orientation === 'H' ? 'placed-wall-h' : 'placed-wall-v', w.placedBy === 0 ? 'red-wall' : 'blue-wall']"
+          :style="getPlacedWallStyle(w)"
+        ></div>
 
-        <!-- Vertical Walls (8 rows x 8 cols) -->
-        <div class="v-walls-overlay">
-          <template v-for="r in 8" :key="`vw-r-${r}`">
-            <span
-              v-for="c in 8"
-              :key="`vw-${r-1}-${c-1}`"
-              class="wall-slot v-slot"
-              :class="{ placed: hasVWall(r - 1, c - 1) }"
-              :style="getVWallStyle(r, c)"
-            ></span>
-          </template>
-        </div>
-
-        <!-- 64 Intersection Wall Anchors (8x8) -->
-        <div class="intersections-grid">
-          <template v-for="r in 8" :key="`int-r-${r}`">
+        <!-- Touch Targets Layer: 64 Intersection Anchors (Active only in Wall mode) -->
+        <div v-if="actionMode === 'wall'" class="touch-intersections-layer">
+          <template v-for="r in 8" :key="`touch-r-${r}`">
             <button
               v-for="c in 8"
-              :key="`int-${r-1}-${c-1}`"
+              :key="`touch-${r-1}-${c-1}`"
               type="button"
-              class="intersection-btn"
+              class="wall-touch-target"
               :class="{
-                'can-place': isMyTurn && !isAiThinking && currentWalls > 0 && !hasIntersectionWall(r - 1, c - 1),
-                'preview-h': actionMode === 'wall' && wallOrientation === 'H',
-                'preview-v': actionMode === 'wall' && wallOrientation === 'V',
+                'is-valid': isWallValid(r - 1, c - 1),
+                'preview-h': wallOrientation === 'H',
+                'preview-v': wallOrientation === 'V',
               }"
-              :style="getIntersectionStyle(r, c)"
-              :title="`Place wall at intersection (${r},${c})`"
+              :style="getTouchTargetStyle(r - 1, c - 1)"
+              :title="`Drop ${wallOrientation === 'H' ? 'horizontal' : 'vertical'} wall at (${r},${c})`"
               @click="onIntersectionClick(r - 1, c - 1)"
             >
-              <span class="crosshair"></span>
+              <span class="touch-dot"></span>
+              <span class="wall-ghost-preview"></span>
             </button>
           </template>
         </div>
       </div>
 
-      <!-- Action Dock (Move vs Wall Mode & Rotate) -->
+      <!-- Action Dock: Move vs Wall Mode & Rotate -->
       <footer class="action-dock">
         <button
           type="button"
-          class="dock-btn"
-          :class="{ active: actionMode === 'move' }"
+          class="btn dock-btn"
+          :class="{ primary: actionMode === 'move', ghost: actionMode !== 'move' }"
           @click="toggleActionMode('move')"
         >
           <span class="dock-icon">🏃</span>
@@ -487,9 +489,9 @@ function hasIntersectionWall(r, c) {
 
         <button
           type="button"
-          class="dock-btn"
-          :class="{ active: actionMode === 'wall' }"
-          :disabled="currentWalls === 0"
+          class="btn dock-btn"
+          :class="{ primary: actionMode === 'wall', ghost: actionMode !== 'wall' }"
+          :disabled="currentWalls === 0 || !isMyTurn || isAiThinking"
           @click="toggleActionMode('wall')"
         >
           <span class="dock-icon">🧱</span>
@@ -498,9 +500,9 @@ function hasIntersectionWall(r, c) {
 
         <button
           type="button"
-          class="dock-btn rotate-btn"
-          :disabled="actionMode !== 'wall'"
-          title="Toggle Horizontal / Vertical orientation"
+          class="btn dock-btn rotate-btn"
+          :class="{ active: actionMode === 'wall' }"
+          title="Toggle Horizontal or Vertical wall orientation"
           @click="toggleOrientation"
         >
           <span class="dock-icon">{{ wallOrientation === 'H' ? '━' : '┃' }}</span>
@@ -509,7 +511,7 @@ function hasIntersectionWall(r, c) {
       </footer>
 
       <!-- Toast Feedback -->
-      <p v-if="toastMessage" class="barricade-toast" role="alert">
+      <p v-if="toastMessage" class="toast-alert alert warn" role="alert">
         {{ toastMessage }}
       </p>
     </section>
