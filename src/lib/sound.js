@@ -72,6 +72,85 @@ export function playMoveSound(symbol = 'X') {
   }
 }
 
+export function playWallDropSound() {
+  if (!soundEnabled) return
+  const ctx = getAudioContext()
+  if (!ctx) return
+
+  try {
+    const now = ctx.currentTime
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+
+    osc.type = 'triangle'
+    osc.frequency.setValueAtTime(180, now)
+    osc.frequency.exponentialRampToValueAtTime(70, now + 0.1)
+
+    gain.gain.setValueAtTime(0.3, now)
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14)
+
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+
+    osc.start(now)
+    osc.stop(now + 0.14)
+  } catch {
+    /* ignore */
+  }
+}
+
+export function playStepSound() {
+  if (!soundEnabled) return
+  const ctx = getAudioContext()
+  if (!ctx) return
+
+  try {
+    const now = ctx.currentTime
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(520, now)
+    osc.frequency.exponentialRampToValueAtTime(380, now + 0.06)
+
+    gain.gain.setValueAtTime(0.12, now)
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08)
+
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+
+    osc.start(now)
+    osc.stop(now + 0.08)
+  } catch {
+    /* ignore */
+  }
+}
+
+export function playInvalidSound() {
+  if (!soundEnabled) return
+  const ctx = getAudioContext()
+  if (!ctx) return
+
+  try {
+    const now = ctx.currentTime
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+
+    osc.type = 'sawtooth'
+    osc.frequency.setValueAtTime(140, now)
+    gain.gain.setValueAtTime(0.12, now)
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1)
+
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+
+    osc.start(now)
+    osc.stop(now + 0.1)
+  } catch {
+    /* ignore */
+  }
+}
+
 export function playWinSound() {
   if (!soundEnabled) return
   const ctx = getAudioContext()

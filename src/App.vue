@@ -1,5 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import GameHub from './components/GameHub.vue'
+import BarricadeGame from './components/BarricadeGame.vue'
 import HomeScreen from './components/HomeScreen.vue'
 import LobbyScreen from './components/LobbyScreen.vue'
 import GameScreen from './components/GameScreen.vue'
@@ -28,6 +30,9 @@ import {
 const telegram = initTelegram()
 const playerId = getPlayerId()
 
+// Active game view: 'hub' | 'barricade' | 'ttt'
+const currentGame = ref('hub')
+
 const room = ref(null)
 const code = ref('')
 const name = ref(loadName() || telegram.user?.first_name || '')
@@ -51,7 +56,7 @@ const screen = computed(() => {
 
 const inviteUrl = computed(() => {
   if (!room.value) return ''
-  const params = new URLSearchParams({ code: room.value.code })
+  const params = new URLSearchParams({ game: 'ttt', code: room.value.code })
   if (brokerIndex.value >= 0) params.set('b', String(brokerIndex.value))
   return `${location.origin}${location.pathname}?${params.toString()}`
 })
@@ -63,8 +68,12 @@ function toggleSound() {
 function syncUrl(nextCode) {
   try {
     const url = new URL(location.href)
-    if (nextCode) url.searchParams.set('code', nextCode)
-    else url.searchParams.delete('code')
+    if (nextCode) {
+      url.searchParams.set('game', 'ttt')
+      url.searchParams.set('code', nextCode)
+    } else {
+      url.searchParams.delete('code')
+    }
     url.searchParams.delete('b')
     history.replaceState({}, '', url)
   } catch {
@@ -280,15 +289,49 @@ function onPageHide() {
   session?.pageHide()
 }
 
+function onSelectGame(gameKey) {
+  playClickSound()
+  currentGame.value = gameKey
+  try {
+    const url = new URL(location.href)
+    url.searchParams.set('game', gameKey)
+    history.replaceState({}, '', url)
+  } catch {}
+}
+
+function goToHub() {
+  playClickSound()
+  if (session) {
+    session.leave()
+    session = null
+    room.value = null
+  }
+  currentGame.value = 'hub'
+  try {
+    const url = new URL(location.href)
+    url.searchParams.delete('game')
+    url.searchParams.delete('code')
+    url.searchParams.delete('b')
+    history.replaceState({}, '', url)
+  } catch {}
+}
+
 onMounted(() => {
   window.addEventListener('pagehide', onPageHide)
 
   const params = new URLSearchParams(location.search)
+  const urlGame = params.get('game')
   const urlCode = normalizeCode(params.get('code'))
   const preferredBroker = params.has('b') ? Number(params.get('b')) : -1
   const saved = loadSession()
 
+  if (urlGame === 'barricade') {
+    currentGame.value = 'barricade'
+    return
+  }
+
   if (urlCode) {
+    currentGame.value = 'ttt'
     code.value = urlCode
     if (saved && saved !== urlCode) clearSession()
 
@@ -298,9 +341,16 @@ onMounted(() => {
     return
   }
 
-  if (saved && (loadName() || telegram.user?.first_name)) {
-    startJoin(saved)
+  if (urlGame === 'ttt') {
+    currentGame.value = 'ttt'
+    if (saved && (loadName() || telegram.user?.first_name)) {
+      startJoin(saved)
+    }
+    return
   }
+
+  // Default to Hub showing both games!
+  currentGame.value = 'hub'
 })
 
 onBeforeUnmount(() => {
@@ -312,12 +362,31 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="app">
-    <!-- Top global bar for audio & status -->
+    <!-- Top global bar for audio & navigation -->
     <header class="top-nav">
+      <button
+        v-if="currentGame !== 'hub'"
+        class="hub-back-btn"
+        type="button"
+        title="Back to Games Hub"
+        @click="goToHub"
+      >
+        ‹ Games
+      </button>
+
       <div class="brand-mini">
-        <span class="mini-x">✕</span>
-        <span class="mini-o">○</span>
-        <span class="brand-title">Tic Tac Toe</span>
+        <template v-if="currentGame === 'barricade'">
+          <span class="hub-icon-badge barricade-icon mini-icon">🧱</span>
+          <span class="brand-title">Barricade</span>
+        </template>
+        <template v-else-if="currentGame === 'ttt'">
+          <span class="mini-x">✕</span>
+          <span class="mini-o">○</span>
+          <span class="brand-title">Tic Tac Toe</span>
+        </template>
+        <template v-else>
+          <span class="brand-title">Game Arena</span>
+        </template>
       </div>
 
       <div class="top-actions">
@@ -333,7 +402,7 @@ onBeforeUnmount(() => {
         </button>
 
         <span
-          v-if="connection !== 'idle' && connection !== 'closed'"
+          v-if="currentGame === 'ttt' && connection !== 'idle' && connection !== 'closed'"
           class="conn-pill"
           :class="connection"
           :title="`Status: ${connection}`"
@@ -345,58 +414,71 @@ onBeforeUnmount(() => {
     </header>
 
     <main class="shell">
-      <div v-if="loading" class="card loading-card">
-        <span class="spinner big" aria-hidden="true"></span>
-        <p class="loading-title">Connecting to match…</p>
-        <span class="loading-sub">Linking up over secure peer-to-peer relay</span>
-      </div>
-
-      <HomeScreen
-        v-else-if="screen === 'home'"
-        v-model:code="code"
-        v-model:name="name"
-        :busy="busy"
-        :error="error"
-        @random-code="generateRandomCode"
-        @submit="joinMatch"
+      <!-- Game Hub Screen: Choose between the 2 games -->
+      <GameHub
+        v-if="currentGame === 'hub'"
+        @select-game="onSelectGame"
       />
 
-      <LobbyScreen
-        v-else-if="screen === 'lobby'"
-        :room="room"
-        :invite-url="inviteUrl"
-        :copied="copied"
-        :busy="busy"
-        :connection="connection"
-        @copy-code="copyCode"
-        @copy-link="copyLink"
-        @share="shareInvite"
-        @leave="leaveMatch"
+      <!-- New Game: Barricade (Quoridor 9x9) -->
+      <BarricadeGame
+        v-else-if="currentGame === 'barricade'"
+        @back-to-hub="goToHub"
       />
 
-      <GameScreen
-        v-else
-        :room="room"
-        :invite-url="inviteUrl"
-        :copied="copied"
-        :busy="busy"
-        :connection="connection"
-        @move="playMove"
-        @rematch="requestRematch"
-        @leave="leaveMatch"
-        @copy-link="copyLink"
-        @share="shareInvite"
-      />
+      <!-- Classic Game: Tic Tac Toe (3x3 Online) -->
+      <template v-else-if="currentGame === 'ttt'">
+        <div v-if="loading" class="card loading-card">
+          <span class="spinner big" aria-hidden="true"></span>
+          <p class="loading-title">Connecting to match…</p>
+          <span class="loading-sub">Linking up over secure peer-to-peer relay</span>
+        </div>
 
-      <p v-if="room && error" class="alert floating" role="alert">{{ error }}</p>
+        <HomeScreen
+          v-else-if="screen === 'home'"
+          v-model:code="code"
+          v-model:name="name"
+          :busy="busy"
+          :error="error"
+          @random-code="generateRandomCode"
+          @submit="joinMatch"
+        />
+
+        <LobbyScreen
+          v-else-if="screen === 'lobby'"
+          :room="room"
+          :invite-url="inviteUrl"
+          :copied="copied"
+          :busy="busy"
+          :connection="connection"
+          @copy-code="copyCode"
+          @copy-link="copyLink"
+          @share="shareInvite"
+          @leave="leaveMatch"
+        />
+
+        <GameScreen
+          v-else
+          :room="room"
+          :invite-url="inviteUrl"
+          :copied="copied"
+          :busy="busy"
+          :connection="connection"
+          @move="playMove"
+          @rematch="requestRematch"
+          @leave="leaveMatch"
+          @copy-link="copyLink"
+          @share="shareInvite"
+        />
+
+        <p v-if="room && error" class="alert floating" role="alert">{{ error }}</p>
+      </template>
     </main>
 
     <footer class="footer">
       <span>Zero accounts or DB</span>
       <span class="dot">•</span>
-      <span>Fair alternating rounds</span>
-      <span class="dot">•</span>
-      <span>Share code & play</span>
+      <span>Mobile & Telegram Mini App Ready</span>
     </footer>
   </div>
 </template>

@@ -1307,3 +1307,563 @@ input:focus {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------- Game Hub (2-Game Selector) ---------- */
+
+.game-hub {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: riseIn 0.25s ease both;
+}
+
+.hub-header {
+  text-align: center;
+  padding: 4px 6px 0;
+}
+
+.hub-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hub-card {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding: 14px 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.hub-card:hover {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.05) 100%);
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+.hub-card:active {
+  transform: scale(0.985);
+}
+
+.hub-card.featured {
+  border-color: rgba(6, 182, 212, 0.4);
+  background: linear-gradient(180deg, rgba(6, 182, 212, 0.12) 0%, rgba(255, 255, 255, 0.03) 100%);
+  box-shadow: 0 4px 20px rgba(6, 182, 212, 0.15);
+}
+
+.hub-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.hub-badge-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hub-icon-badge {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 5px;
+  font-size: 1.15rem;
+  font-weight: 900;
+  border: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.barricade-icon {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.runner-icon {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.x-mini {
+  color: var(--x);
+  background: var(--x-soft);
+  border-color: rgba(255, 51, 102, 0.4);
+}
+
+.o-mini {
+  color: var(--o);
+  background: var(--o-soft);
+  border-color: rgba(0, 240, 255, 0.4);
+}
+
+.card-tag {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.card-tag.hot {
+  background: rgba(6, 182, 212, 0.2);
+  border-color: var(--accent-2);
+  color: #67e8f9;
+}
+
+.hub-card h2 {
+  margin: 0 0 4px;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.card-desc {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.card-desc b {
+  color: var(--text);
+}
+
+.feature-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 12px;
+}
+
+.chip-item {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: rgba(8, 12, 26, 0.6);
+  border: 1px solid var(--border);
+  color: #cbd5e1;
+}
+
+.play-hub-btn {
+  width: 100%;
+  padding: 10px;
+  font-size: 0.88rem;
+}
+
+.hub-back-btn {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--accent-2);
+  font-family: inherit;
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  touch-action: manipulation;
+}
+
+.hub-back-btn:hover {
+  background: var(--panel-hover);
+  color: var(--text);
+}
+
+/* ---------- Barricade (Quoridor 9x9) Styles ---------- */
+
+.barricade-wrapper {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: riseIn 0.25s ease both;
+}
+
+.setup-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: center;
+}
+
+.setup-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.mode-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.mode-box {
+  background: rgba(8, 12, 26, 0.6);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mode-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mode-icon {
+  font-size: 1.3rem;
+}
+
+.mode-title strong {
+  display: block;
+  font-size: 0.86rem;
+}
+
+.mode-title small {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.diff-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.diff-buttons .btn {
+  flex: 1;
+  padding: 7px;
+  font-size: 0.78rem;
+}
+
+.btn.full {
+  width: 100%;
+}
+
+.back-hub-btn {
+  margin: 4px auto 0;
+}
+
+/* In-Game Header */
+.barricade-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.game-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: capitalize;
+}
+
+/* Player HUDs */
+.player-hud {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  transition: all 0.15s ease;
+}
+
+.player-hud.active {
+  border-color: var(--accent-2);
+  background: rgba(6, 182, 212, 0.12);
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.25);
+}
+
+.player-hud.winner {
+  border-color: var(--good);
+  background: rgba(16, 185, 129, 0.15);
+}
+
+.hud-left {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.pawn-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.hud-names strong {
+  display: block;
+  font-size: 0.78rem;
+}
+
+.hud-names small {
+  display: block;
+  font-size: 0.64rem;
+  color: var(--muted);
+}
+
+/* Wall Rack (10 Sticks) */
+.wall-rack {
+  display: flex;
+  align-items: center;
+  gap: 2.5px;
+}
+
+.wall-stick {
+  width: 4px;
+  height: 18px;
+  border-radius: 2px;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.red-stick {
+  background: var(--x);
+  box-shadow: 0 0 5px var(--x-glow);
+}
+
+.blue-stick {
+  background: var(--o);
+  box-shadow: 0 0 5px var(--o-glow);
+}
+
+.wall-stick.spent {
+  opacity: 0.18;
+  transform: scaleY(0.6);
+  box-shadow: none;
+}
+
+.wall-count {
+  font-size: 0.74rem;
+  font-weight: 800;
+  margin-left: 5px;
+  color: var(--text);
+}
+
+/* Turn Bar */
+.turn-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 8px;
+  border-radius: 5px;
+  margin: 6px 0;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: center;
+}
+
+.turn-bar.mine {
+  background: rgba(16, 185, 129, 0.14);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #6ee7b7;
+}
+
+.turn-bar.win {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: var(--good);
+  color: #a7f3d0;
+}
+
+/* The 9x9 Quoridor Board */
+.board-container {
+  width: 100%;
+  max-width: 290px;
+  margin: 0 auto;
+}
+
+.quoridor-grid {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  grid-template-rows: repeat(9, 1fr);
+  gap: 5px;
+  background: rgba(5, 8, 18, 0.8);
+  padding: 5px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+
+.grid-cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: all 0.12s ease;
+}
+
+.grid-cell:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.grid-cell.legal-target {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.5);
+  cursor: pointer;
+}
+
+.grid-cell.legal-target:hover {
+  background: rgba(16, 185, 129, 0.25);
+}
+
+.move-indicator-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--good);
+  box-shadow: 0 0 8px var(--good);
+  animation: pulseDot 1s infinite alternate;
+}
+
+/* Pawns */
+.pawn {
+  width: 68%;
+  height: 68%;
+  border-radius: 50%;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.6);
+  animation: popScale 0.2s ease both;
+}
+
+.red-pawn {
+  background: radial-gradient(circle at 35% 35%, #ff6b9d, var(--x) 75%);
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 12px var(--x-glow);
+}
+
+.blue-pawn {
+  background: radial-gradient(circle at 35% 35%, #67e8f9, var(--o) 75%);
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 12px var(--o-glow);
+}
+
+/* Wall Intersections (64 Touch Points in the grooves) */
+.wall-intersection {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  z-index: 15;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background 0.12s ease;
+  touch-action: manipulation;
+}
+
+.wall-intersection.active-mode:hover,
+.wall-intersection.active-mode:active {
+  background: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 0 8px #ffffff;
+}
+
+/* Rendered Placed Walls */
+.placed-wall {
+  position: absolute;
+  z-index: 20;
+  border-radius: 3px;
+  pointer-events: none;
+  animation: popScale 0.15s ease both;
+}
+
+.placed-wall-h {
+  height: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+
+.placed-wall-v {
+  width: 6px;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.6);
+}
+
+.red-wall {
+  background: #f59e0b;
+  border: 1px solid #fbbf24;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+}
+
+.blue-wall {
+  background: #38bdf8;
+  border: 1px solid #7dd3fc;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+}
+
+/* Action Controls Dock */
+.action-dock {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.dock-btn {
+  flex: 1;
+  padding: 8px 10px;
+  font-size: 0.82rem;
+}
+
+.rotate-btn {
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #fef08a;
+}
+
+.game-over-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: center;
+  padding: 10px;
+  border-radius: 5px;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid var(--good);
+  margin-top: 6px;
+}
+
+.game-over-box strong {
+  font-size: 0.95rem;
+  color: #a7f3d0;
+}
+
+.toast-alert {
+  margin-top: 6px;
+  text-align: center;
+  font-size: 0.76rem;
+  padding: 6px;
+  animation: riseIn 0.15s ease both;
+}
