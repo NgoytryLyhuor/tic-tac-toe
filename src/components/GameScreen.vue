@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import { t } from '../lib/i18n.js'
 
 const props = defineProps({
   room: { type: Object, required: true },
@@ -16,7 +17,7 @@ const opponent = computed(() => (you.value === 'X' ? 'O' : 'X'))
 const isPassAndPlay = computed(() => props.room.mode === 'pass')
 const isAiMode = computed(() => props.room.mode === 'ai')
 
-const myName = computed(() => props.room.players?.[you.value]?.name || 'You')
+const myName = computed(() => props.room.players?.[you.value]?.name || t('you_label'))
 const opponentName = computed(() => props.room.players?.[opponent.value]?.name || 'Opponent')
 const isHost = computed(() => you.value === 'X')
 
@@ -42,23 +43,23 @@ const nextStarterName = computed(() => {
   if (isPassAndPlay.value) {
     return props.room.players?.[nextStarter.value]?.name || `Player ${nextStarter.value}`
   }
-  if (nextStarter.value === you.value) return 'You'
+  if (nextStarter.value === you.value) return t('you_label')
   return opponentName.value
 })
 
 const starterLabel = computed(() => {
   if (isPassAndPlay.value) {
     const sName = props.room.players?.[starter.value]?.name || `Player ${starter.value}`
-    return `${sName} started first`
+    return `${sName} started`
   }
-  if (starter.value === you.value) return 'You started first'
-  return `${opponentName.value} started first`
+  if (starter.value === you.value) return 'You started'
+  return `${opponentName.value} started`
 })
 
 function getPlayerRole(symbol) {
   if (isPassAndPlay.value) return symbol === 'X' ? 'Player 1' : 'Player 2'
-  if (isAiMode.value) return symbol === 'X' ? 'You' : 'Computer'
-  return you.value === symbol ? 'You' : 'Opponent'
+  if (isAiMode.value) return symbol === 'X' ? t('you_label') : 'AI'
+  return you.value === symbol ? t('you_label') : 'Opponent'
 }
 
 function getPlayerName(symbol) {
@@ -68,26 +69,26 @@ function getPlayerName(symbol) {
 const statusBanner = computed(() => {
   if (isFinished.value) {
     const winner = props.room.result?.winner
-    if (winner === 'draw') return { text: "It's a draw! Well played.", type: 'draw' }
+    if (winner === 'draw') return { text: t('ttt_draw'), type: 'draw' }
     if (isPassAndPlay.value) {
       const winnerName = props.room.players?.[winner]?.name || `Player ${winner}`
-      return { text: `🏆 ${winnerName} won this round!`, type: 'win' }
+      return { text: `🏆 ${winnerName} won!`, type: 'win' }
     }
     if (isAiMode.value) {
       return winner === you.value
-        ? { text: 'Victory! You defeated the AI! 🎉', type: 'win' }
-        : { text: 'AI won this round. Tap Rematch!', type: 'loss' }
+        ? { text: t('ttt_you_won'), type: 'win' }
+        : { text: t('win_ai'), type: 'loss' }
     }
-    if (winner === you.value) return { text: 'Victory! You won this round! 🎉', type: 'win' }
-    return { text: `${opponentName.value} won this round.`, type: 'loss' }
+    if (winner === you.value) return { text: t('ttt_you_won'), type: 'win' }
+    return { text: t('ttt_opp_won'), type: 'loss' }
   }
 
   if (!isPlaying.value) {
-    return { text: 'Waiting for match to resume…', type: 'neutral' }
+    return { text: t('waiting'), type: 'neutral' }
   }
 
   if (isAiMode.value && props.room.turn === 'O') {
-    return { text: '🤖 AI is calculating best move…', type: 'turn-theirs' }
+    return { text: t('ai_thinking'), type: 'turn-theirs' }
   }
 
   if (isPassAndPlay.value) {
@@ -104,10 +105,10 @@ const statusBanner = computed(() => {
   }
 
   if (isMyTurn.value) {
-    return { text: 'Your Turn — Tap open square', type: 'turn-mine' }
+    return { text: t('ttt_turn_mine'), type: 'turn-mine' }
   }
 
-  return { text: `Waiting for ${opponentName.value}…`, type: 'turn-theirs' }
+  return { text: `${opponentName.value}'s Turn`, type: 'turn-theirs' }
 })
 
 const rematchVoted = computed(() => Boolean(props.room.rematch?.[you.value]))
@@ -339,13 +340,13 @@ function cellClass(index) {
           :disabled="props.busy"
           @click="emit('rematch')"
         >
-          <span v-if="opponentVoted && !isAiMode && !isPassAndPlay">Accept Rematch ⚔️</span>
-          <span v-else>Play Again ⚔️</span>
+          <span v-if="opponentVoted && !isAiMode && !isPassAndPlay">{{ t('btn_rematch') }} ⚔️</span>
+          <span v-else>{{ t('btn_play_again') }} ⚔️</span>
         </button>
 
         <div v-else class="waiting-rematch">
           <span class="spinner" aria-hidden="true"></span>
-          <span>{{ opponentVoted ? 'Starting next round…' : 'Waiting for opponent…' }}</span>
+          <span>{{ opponentVoted ? 'Starting…' : t('btn_waiting_rematch') }}</span>
         </div>
       </div>
     </div>

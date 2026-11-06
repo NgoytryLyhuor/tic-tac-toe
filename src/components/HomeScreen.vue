@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
+import { t } from '../lib/i18n.js'
 
 const props = defineProps({
   code: { type: String, default: '' },
@@ -36,9 +37,9 @@ function startPassMatch() {
 }
 
 const diffDescription = computed(() => {
-  if (aiDifficulty.value === 'easy') return 'Casual & relaxed bot • Great for quick fun'
-  if (aiDifficulty.value === 'medium') return 'Smart bot • Blocks traps & seizes winning moves'
-  return 'Master bot • Unbeatable Minimax algorithm 🧠'
+  if (aiDifficulty.value === 'easy') return t('diff_help')
+  if (aiDifficulty.value === 'medium') return t('diff_help')
+  return 'Master bot • Unbeatable Minimax 🧠'
 })
 </script>
 
@@ -51,8 +52,8 @@ const diffDescription = computed(() => {
         <span class="brand-badge o-badge">○</span>
       </div>
       <div>
-        <h1>Tic Tac Toe</h1>
-        <p class="lede">Classic 3×3 with fair turns. Play solo or PvP.</p>
+        <h1>{{ t('ttt_title') }}</h1>
+        <p class="lede">{{ t('ttt_home_lede') }}</p>
       </div>
     </div>
 
@@ -65,7 +66,7 @@ const diffDescription = computed(() => {
         @click="activeMode = 'ai'"
       >
         <span class="tab-icon">🤖</span>
-        <span class="tab-label">vs Computer</span>
+        <span class="tab-label">{{ t('tab_vs_computer') }}</span>
       </button>
       <button
         type="button"
@@ -74,14 +75,14 @@ const diffDescription = computed(() => {
         @click="activeMode = 'pvp'"
       >
         <span class="tab-icon">👥</span>
-        <span class="tab-label">2 Players (PvP)</span>
+        <span class="tab-label">{{ t('tab_pvp') }}</span>
       </button>
     </div>
 
-    <!-- Mode 1: Play with Computer (Solo / Alone) -->
+    <!-- Mode 1: Play with Computer (Solo) -->
     <div v-if="activeMode === 'ai'" class="ai-setup-pane">
       <div class="field">
-        <span>AI Difficulty</span>
+        <span>{{ t('ai_diff_label') }}</span>
         <div class="diff-buttons">
           <button
             type="button"
@@ -89,7 +90,7 @@ const diffDescription = computed(() => {
             :class="aiDifficulty === 'easy' ? 'primary' : 'ghost'"
             @click="aiDifficulty = 'easy'"
           >
-            Easy
+            {{ t('ttt_ai_easy') }}
           </button>
           <button
             type="button"
@@ -97,7 +98,7 @@ const diffDescription = computed(() => {
             :class="aiDifficulty === 'medium' ? 'primary' : 'ghost'"
             @click="aiDifficulty = 'medium'"
           >
-            Medium ⭐
+            {{ t('ttt_ai_medium') }}
           </button>
           <button
             type="button"
@@ -105,20 +106,20 @@ const diffDescription = computed(() => {
             :class="aiDifficulty === 'master' ? 'primary' : 'ghost'"
             @click="aiDifficulty = 'master'"
           >
-            Master 🧠
+            {{ t('ttt_ai_master') }}
           </button>
         </div>
         <small class="diff-help">{{ diffDescription }}</small>
       </div>
 
       <label class="field">
-        <span>Your Nickname <em>(optional)</em></span>
+        <span>{{ t('ttt_your_name') }}</span>
         <input
           :value="props.name"
           type="text"
           autocomplete="nickname"
           maxlength="20"
-          placeholder="You (Player X)"
+          :placeholder="t('ttt_name_placeholder')"
           @input="emit('update:name', $event.target.value)"
         />
       </label>
@@ -126,16 +127,9 @@ const diffDescription = computed(() => {
       <p v-if="props.error" class="alert" role="alert">{{ props.error }}</p>
 
       <button class="btn primary main-cta" type="button" @click="startAiMatch">
-        <span>Play Solo vs AI</span>
+        <span>{{ t('ttt_btn_solo') }}</span>
         <span class="arrow-icon">→</span>
       </button>
-
-      <div class="rules-highlight">
-        <div class="rule-chip">
-          <span class="rule-icon">⚖️</span>
-          <span>Fair alternating turns on every rematch</span>
-        </div>
-      </div>
     </div>
 
     <!-- Mode 2: Play with 2 People (PvP) -->
@@ -147,7 +141,7 @@ const diffDescription = computed(() => {
           :class="{ active: pvpType === 'online' }"
           @click="pvpType = 'online'"
         >
-          🌐 Online (Room Code)
+          🌐 {{ t('subtab_online') }}
         </button>
         <button
           type="button"
@@ -155,7 +149,7 @@ const diffDescription = computed(() => {
           :class="{ active: pvpType === 'pass' }"
           @click="pvpType = 'pass'"
         >
-          📱 Pass & Play (Local)
+          📱 {{ t('subtab_pass') }}
         </button>
       </div>
 
@@ -163,14 +157,14 @@ const diffDescription = computed(() => {
       <form v-if="pvpType === 'online'" class="form" @submit.prevent="emit('submit')">
         <div class="field">
           <div class="field-header">
-            <span>Match code</span>
+            <span>{{ t('ttt_room_code') }}</span>
             <button
               class="random-btn"
               type="button"
-              title="Generate random code"
+              :title="t('ttt_random_code')"
               @click="emit('random-code')"
             >
-              <span class="dice-icon">🎲</span> Random
+              <span class="dice-icon">🎲</span> {{ t('ttt_random_code') }}
             </button>
           </div>
           <div class="input-wrap">
@@ -187,74 +181,46 @@ const diffDescription = computed(() => {
               @input="onCode"
             />
           </div>
-          <small>Share this code with your friend to connect.</small>
+          <small>{{ t('ttt_share_hint') }}</small>
         </div>
 
         <label class="field">
-          <span>Nickname <em>(optional)</em></span>
+          <span>{{ t('ttt_your_name') }}</span>
           <input
             :value="props.name"
             type="text"
             autocomplete="nickname"
             maxlength="20"
-            placeholder="Player 1"
+            :placeholder="t('ttt_name_placeholder')"
             @input="emit('update:name', $event.target.value)"
           />
         </label>
 
         <p v-if="props.error" class="alert" role="alert">{{ props.error }}</p>
 
-        <button class="btn primary main-cta" type="submit" :disabled="props.busy">
-          <span v-if="props.busy" class="spinner" aria-hidden="true"></span>
-          <span>{{ props.busy ? 'Connecting…' : 'Start / Join Online Match' }}</span>
-          <span class="arrow-icon">→</span>
+        <button
+          class="btn primary submit-btn"
+          type="submit"
+          :disabled="props.busy || !props.code"
+        >
+          <span v-if="props.busy" class="spinner small" aria-hidden="true"></span>
+          <span>{{ t('ttt_btn_join') }}</span>
         </button>
 
-        <ol class="steps">
-          <li>
-            <span class="step-num">1</span>
-            <span>Enter or roll a code and tap <b>Start</b></span>
-          </li>
-          <li>
-            <span class="step-num">2</span>
-            <span>Share code or invite link with a friend</span>
-          </li>
-          <li>
-            <span class="step-num">3</span>
-            <span>They join — play starts instantly</span>
-          </li>
-        </ol>
+        <div class="steps-row">
+          <span class="step-chip">{{ t('step_1') }}</span>
+          <span class="step-chip">{{ t('step_2') }}</span>
+          <span class="step-chip">{{ t('step_3') }}</span>
+        </div>
       </form>
 
-      <!-- Local Pass & Play -->
-      <div v-else class="pass-setup-pane">
-        <label class="field">
-          <span>Your Nickname <em>(optional)</em></span>
-          <input
-            :value="props.name"
-            type="text"
-            autocomplete="nickname"
-            maxlength="20"
-            placeholder="Player 1"
-            @input="emit('update:name', $event.target.value)"
-          />
-        </label>
-
-        <p class="pass-desc">
-          Take turns playing <b>✕</b> and <b>○</b> on this phone screen. Zero internet or setup required!
-        </p>
-
-        <button class="btn primary main-cta" type="button" @click="startPassMatch">
-          <span>Start 2-Player Local Match</span>
+      <!-- Pass & Play -->
+      <div v-else class="pass-pane">
+        <p class="pass-info">{{ t('pass_desc') }}</p>
+        <button class="btn primary submit-btn" type="button" @click="startPassMatch">
+          <span>{{ t('ttt_btn_pass') }}</span>
           <span class="arrow-icon">→</span>
         </button>
-
-        <div class="rules-highlight">
-          <div class="rule-chip">
-            <span class="rule-icon">⚖️</span>
-            <span>Alternating turns on each rematch</span>
-          </div>
-        </div>
       </div>
     </div>
   </section>

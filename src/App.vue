@@ -16,6 +16,7 @@ import {
   saveName,
   saveSession,
 } from './lib/player.js'
+import { currentLang, toggleLanguage, t } from './lib/i18n.js'
 import { initTelegram } from './lib/telegram.js'
 import {
   isSoundEnabled,
@@ -70,6 +71,12 @@ const inviteUrl = computed(() => {
 
 function toggleSound() {
   soundOn.value = libToggleSound()
+}
+
+function onToggleLang() {
+  playClickSound()
+  telegram.haptic('light')
+  toggleLanguage()
 }
 
 function syncUrl(nextCode) {
@@ -578,30 +585,41 @@ onBeforeUnmount(() => {
         title="Back to Games Hub"
         @click="goToHub"
       >
-        ‹ Games
+        ‹ {{ t('nav_games') }}
       </button>
 
       <div class="brand-mini">
         <template v-if="currentGame === 'barricade'">
           <span class="hub-icon-badge barricade-icon mini-icon">🧱</span>
-          <span class="brand-title">Barricade</span>
+          <span class="brand-title">{{ t('nav_barricade') }}</span>
         </template>
         <template v-else-if="currentGame === 'ttt'">
           <span class="mini-x">✕</span>
           <span class="mini-o">○</span>
-          <span class="brand-title">Tic Tac Toe</span>
+          <span class="brand-title">{{ t('nav_ttt') }}</span>
         </template>
         <template v-else>
-          <span class="brand-title">Game Arena</span>
+          <span class="brand-title">Mini Games</span>
         </template>
       </div>
 
       <div class="top-actions">
+        <!-- Language Switcher (EN / ខ្មែរ) -->
+        <button
+          type="button"
+          class="lang-btn"
+          :title="currentLang === 'en' ? 'ប្តូរទៅភាសាខ្មែរ' : 'Switch to English'"
+          @click="onToggleLang"
+        >
+          <span class="lang-flag">{{ currentLang === 'en' ? '🇰🇭' : '🇬🇧' }}</span>
+          <span class="lang-text">{{ currentLang === 'en' ? 'ខ្មែរ' : 'EN' }}</span>
+        </button>
+
         <button
           class="icon-btn"
           type="button"
-          :title="soundOn ? 'Mute sound' : 'Unmute sound'"
-          :aria-label="soundOn ? 'Mute sound' : 'Unmute sound'"
+          :title="soundOn ? t('nav_sound_on') : t('nav_sound_off')"
+          :aria-label="soundOn ? t('nav_sound_on') : t('nav_sound_off')"
           @click="toggleSound"
         >
           <span v-if="soundOn" class="icon">🔊</span>
@@ -687,9 +705,7 @@ onBeforeUnmount(() => {
     </main>
 
     <footer class="footer">
-      <span>Zero accounts or DB</span>
-      <span class="dot">•</span>
-      <span>Mobile & Telegram Mini App Ready</span>
+      <span>{{ t('footer_note') }}</span>
     </footer>
   </div>
 </template>

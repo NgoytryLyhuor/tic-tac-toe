@@ -1,13 +1,15 @@
 <script setup>
+import { t } from '../lib/i18n.js'
+
 const emit = defineEmits(['select-game'])
 </script>
 
 <template>
   <div class="game-hub">
     <div class="hub-header">
-      <p class="eyebrow">Online & Offline Arena</p>
-      <h1>Choose a Game</h1>
-      <p class="lede">Play solo against computer or 2 players with friends.</p>
+      <p class="eyebrow">{{ t('hub_eyebrow') }}</p>
+      <h1>{{ t('hub_title') }}</h1>
+      <p class="lede">{{ t('hub_lede') }}</p>
     </div>
 
     <div class="hub-cards">
@@ -18,22 +20,22 @@ const emit = defineEmits(['select-game'])
             <span class="hub-icon-badge barricade-icon">🧱</span>
             <span class="hub-icon-badge runner-icon">🏃</span>
           </div>
-          <span class="card-tag hot">NEW • STRATEGY</span>
+          <span class="card-tag hot">{{ t('hub_tag_new_strategy') }}</span>
         </div>
 
-        <h2>Barricade (Quoridor)</h2>
+        <h2>{{ t('hub_barricade_title') }}</h2>
         <p class="card-desc">
-          Race across the 9×9 grid to reach the goal. Place 10 wooden barricades to block rivals! Inspired by <b>barricade.gg</b>.
+          {{ t('hub_barricade_desc') }}
         </p>
 
         <div class="feature-chips">
-          <span class="chip-item">🤖 Solo vs AI</span>
-          <span class="chip-item">👥 2 Players (PvP)</span>
-          <span class="chip-item">🧱 10 Walls</span>
+          <span class="chip-item">{{ t('chip_solo_ai') }}</span>
+          <span class="chip-item">{{ t('chip_pvp') }}</span>
+          <span class="chip-item">{{ t('chip_walls') }}</span>
         </div>
 
         <button class="btn primary play-hub-btn" type="button">
-          <span>Play Barricade</span>
+          <span>{{ t('btn_play_barricade') }}</span>
           <span class="arrow">→</span>
         </button>
       </article>
@@ -45,22 +47,22 @@ const emit = defineEmits(['select-game'])
             <span class="hub-icon-badge x-mini">✕</span>
             <span class="hub-icon-badge o-mini">○</span>
           </div>
-          <span class="card-tag">CLASSIC • 3X3</span>
+          <span class="card-tag">{{ t('hub_tag_classic_3x3') }}</span>
         </div>
 
-        <h2>Tic Tac Toe</h2>
+        <h2>{{ t('hub_ttt_title') }}</h2>
         <p class="card-desc">
-          Play solo against smart Minimax AI, or 1v1 with friends via room codes & pass-and-play.
+          {{ t('hub_ttt_desc') }}
         </p>
 
         <div class="feature-chips">
-          <span class="chip-item">🤖 Solo vs AI</span>
-          <span class="chip-item">👥 2 Players (PvP)</span>
-          <span class="chip-item">⚖️ Fair Alternating</span>
+          <span class="chip-item">{{ t('chip_solo_ai') }}</span>
+          <span class="chip-item">{{ t('chip_pvp') }}</span>
+          <span class="chip-item">{{ t('chip_room_codes') }}</span>
         </div>
 
         <button class="btn ghost play-hub-btn" type="button">
-          <span>Play Tic Tac Toe</span>
+          <span>{{ t('btn_play_ttt') }}</span>
           <span class="arrow">→</span>
         </button>
       </article>

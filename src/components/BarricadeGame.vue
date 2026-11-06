@@ -29,6 +29,7 @@ import {
   playWinSound,
 } from '../lib/sound.js'
 import { initTelegram } from '../lib/telegram.js'
+import { t } from '../lib/i18n.js'
 
 const props = defineProps({
   initialCode: {
@@ -55,7 +56,7 @@ const inSetup = ref(true)
 const onlineCode = ref(props.initialCode ? normalizeCode(props.initialCode) : '')
 const playerName = ref(loadName() || telegram.user?.first_name || 'Player')
 const onlineRoom = ref(null)
-const onlineStatus = ref('idle') // 'idle' | 'connecting' | 'probing' | 'hosting' | 'guest' | 'error' | 'closed'
+const onlineStatus = ref('idle')
 const onlineError = ref('')
 const brokerIndex = ref(-1)
 const copied = ref('')
@@ -89,7 +90,7 @@ function generateRandomCode() {
   onlineCode.value = `${word}${num}`
 }
 
-// Active State Bridge: Returns onlineRoom when in online mode, else localState
+// Active State Bridge
 const state = computed(() => {
   if (activeMode.value === 'online' && onlineRoom.value) {
     return onlineRoom.value
@@ -119,32 +120,33 @@ const walls0 = computed(() => state.value.wallsLeft?.[0] ?? 10)
 const walls1 = computed(() => state.value.wallsLeft?.[1] ?? 10)
 const currentWalls = computed(() => state.value.wallsLeft?.[state.value.turn] ?? 10)
 
+// Clean, single-line player names that never wrap awkwardly
 const p0Name = computed(() => {
   if (activeMode.value === 'online' && onlineRoom.value) {
-    const hostName = onlineRoom.value.players?.[0]?.name || 'Player 1'
-    return myPlayerIndex.value === 0 ? `${hostName} (You)` : hostName
+    const hostName = onlineRoom.value.players?.[0]?.name || t('you_label')
+    return myPlayerIndex.value === 0 ? t('you_label') : hostName
   }
-  return activeMode.value === 'ai' ? 'You (Red)' : 'Red Player'
+  return activeMode.value === 'ai' ? t('you_label') : t('red_label')
 })
 
 const p1Name = computed(() => {
   if (activeMode.value === 'online' && onlineRoom.value) {
-    const guestName = onlineRoom.value.players?.[1]?.name || 'Player 2'
-    return myPlayerIndex.value === 1 ? `${guestName} (You)` : guestName
+    const guestName = onlineRoom.value.players?.[1]?.name || t('waiting')
+    return myPlayerIndex.value === 1 ? t('you_label') : guestName
   }
-  return activeMode.value === 'ai' ? 'AI Bot (Blue)' : 'Blue Player'
+  return activeMode.value === 'ai' ? t('ai_label') : t('blue_label')
 })
 
 const p0Status = computed(() => {
-  if (state.value.winner === 0) return 'Winner 🏆'
-  if (state.value.winner !== null) return 'Finished'
-  return state.value.turn === 0 ? 'Turn Active' : 'Waiting'
+  if (state.value.winner === 0) return t('winner_badge')
+  if (state.value.winner !== null) return t('finished_badge')
+  return state.value.turn === 0 ? t('turn_active') : t('waiting')
 })
 
 const p1Status = computed(() => {
-  if (state.value.winner === 1) return 'Winner 🏆'
-  if (state.value.winner !== null) return 'Finished'
-  return state.value.turn === 1 ? 'Turn Active' : 'Waiting'
+  if (state.value.winner === 1) return t('winner_badge')
+  if (state.value.winner !== null) return t('finished_badge')
+  return state.value.turn === 1 ? t('turn_active') : t('waiting')
 })
 
 const legalMoves = computed(() => {
@@ -205,7 +207,7 @@ function startPassMatch() {
 function startOnlineMatch(rawCode = onlineCode.value) {
   const norm = normalizeCode(rawCode)
   if (norm.length < 3) {
-    showToast('Please enter a match code with at least 3 characters.')
+    showToast(t('toast_code_min'))
     telegram.haptic('warning')
     return
   }
@@ -236,7 +238,7 @@ function startOnlineMatch(rawCode = onlineCode.value) {
           syncUrl(next.code)
         }
 
-        // Guest just joined lobby
+        // Guest joined lobby
         if (prev?.status === 'waiting' && next.status === 'playing') {
           playJoinSound()
           telegram.haptic('success')
@@ -342,7 +344,7 @@ function onCellClick(r, c) {
 function onIntersectionClick(r, c) {
   if (!isMyTurn.value || isAiThinking.value) return
   if (currentWalls.value <= 0) {
-    showToast('No walls remaining!')
+    showToast(t('toast_no_walls'))
     return
   }
 
@@ -350,7 +352,7 @@ function onIntersectionClick(r, c) {
   if (!valid) {
     telegram.haptic('error')
     playInvalidSound()
-    showToast('Cannot block all paths to goal!')
+    showToast(t('toast_block_all'))
     return
   }
 
@@ -466,34 +468,34 @@ watch(
 const turnBannerText = computed(() => {
   if (state.value.winner !== null) {
     if (activeMode.value === 'ai') {
-      return state.value.winner === 0 ? '🏆 Victory! You reached the goal!' : '🤖 AI Won this round!'
+      return state.value.winner === 0 ? t('win_victory') : t('win_ai')
     }
     if (activeMode.value === 'online') {
       return state.value.winner === myPlayerIndex.value
-        ? '🏆 Victory! You reached the opposite side!'
-        : 'Opponent reached the goal!'
+        ? t('win_victory')
+        : t('win_opp')
     }
-    return state.value.winner === 0 ? '🏆 Red Player Won!' : '🏆 Blue Player Won!'
+    return state.value.winner === 0 ? t('win_red') : t('win_blue')
   }
 
   if (isAiThinking.value) {
-    return '🤖 AI is planning next move…'
+    return t('ai_thinking')
   }
 
   if (activeMode.value === 'online' && !isMyTurn.value) {
-    const oppName = myPlayerIndex.value === 0 ? (onlineRoom.value?.players?.[1]?.name || 'Player 2') : (onlineRoom.value?.players?.[0]?.name || 'Player 1')
-    return `${oppName}'s turn — Waiting for opponent…`
+    const oppName = myPlayerIndex.value === 0 ? (onlineRoom.value?.players?.[1]?.name || t('waiting')) : (onlineRoom.value?.players?.[0]?.name || t('waiting'))
+    return t('opp_thinking', { name: oppName })
   }
 
   if (actionMode.value === 'wall') {
-    return '🧱 Wall Mode: Tap any golden dot to drop wall'
+    return t('your_turn_wall')
   }
 
   if (activeMode.value === 'pass') {
-    return state.value.turn === 0 ? "Red's Turn — Tap green square to move" : "Blue's Turn — Tap green square to move"
+    return state.value.turn === 0 ? t('red_turn_pass') : t('blue_turn_pass')
   }
 
-  return 'Your Turn — Tap green square to move'
+  return t('your_turn_move')
 })
 
 async function shareInvite() {
@@ -502,8 +504,8 @@ async function shareInvite() {
   const url = inviteUrl.value
   const matchCode = onlineRoom.value?.code || onlineCode.value
   const shareData = {
-    title: 'Barricade Match',
-    text: `Join my Barricade match! Code: ${matchCode}`,
+    title: t('barricade_title'),
+    text: `${t('barricade_title')} - Code: ${matchCode}`,
     url: url,
   }
 
@@ -547,7 +549,6 @@ const copyCode = () => copyText(onlineRoom.value?.code || onlineCode.value, 'cod
 const copyLink = () => copyText(inviteUrl.value, 'link')
 
 onMounted(() => {
-  // If an initial code was passed in via URL, jump directly to online setup or connect
   if (props.initialCode) {
     setupTab.value = 'pvp'
     pvpSubTab.value = 'online'
@@ -575,8 +576,8 @@ onBeforeUnmount(() => {
     <section v-if="inSetup" class="card setup-card">
       <div class="setup-header">
         <span class="hub-icon-badge barricade-icon">🧱</span>
-        <h2>Barricade (Quoridor)</h2>
-        <p class="lede">Race your pawn to the opposite side. Place walls to trap your opponent!</p>
+        <h2>{{ t('barricade_title') }}</h2>
+        <p class="lede">{{ t('barricade_lede') }}</p>
       </div>
 
       <!-- Top Mode Switcher: Solo vs 2 Players -->
@@ -588,7 +589,7 @@ onBeforeUnmount(() => {
           @click="setupTab = 'ai'"
         >
           <span class="tab-icon">🤖</span>
-          <span class="tab-label">vs Computer</span>
+          <span class="tab-label">{{ t('tab_vs_computer') }}</span>
         </button>
         <button
           type="button"
@@ -597,14 +598,14 @@ onBeforeUnmount(() => {
           @click="setupTab = 'pvp'"
         >
           <span class="tab-icon">👥</span>
-          <span class="tab-label">2 Players (PvP)</span>
+          <span class="tab-label">{{ t('tab_pvp') }}</span>
         </button>
       </div>
 
       <!-- Tab 1: vs Computer (Solo) -->
       <div v-if="setupTab === 'ai'" class="ai-setup-pane">
         <div class="field">
-          <span>AI Difficulty</span>
+          <span>{{ t('ai_diff_label') }}</span>
           <div class="diff-buttons">
             <button
               class="btn small"
@@ -612,7 +613,7 @@ onBeforeUnmount(() => {
               :class="difficulty === 'easy' ? 'primary' : 'ghost'"
               @click="difficulty = 'easy'"
             >
-              Easy
+              {{ t('diff_easy') }}
             </button>
             <button
               class="btn small"
@@ -620,7 +621,7 @@ onBeforeUnmount(() => {
               :class="difficulty === 'medium' ? 'primary' : 'ghost'"
               @click="difficulty = 'medium'"
             >
-              Medium ⭐
+              {{ t('diff_medium') }}
             </button>
             <button
               class="btn small"
@@ -628,14 +629,14 @@ onBeforeUnmount(() => {
               :class="difficulty === 'hard' ? 'primary' : 'ghost'"
               @click="difficulty = 'hard'"
             >
-              Hard ⚔️
+              {{ t('diff_hard') }}
             </button>
           </div>
-          <small class="diff-help">Smart pathfinding bot that builds barricades and shortcuts.</small>
+          <small class="diff-help">{{ t('diff_help') }}</small>
         </div>
 
         <button class="btn primary main-cta" type="button" @click="startAiMatch(difficulty)">
-          <span>Play Solo vs AI</span>
+          <span>{{ t('btn_play_ai') }}</span>
           <span class="arrow-icon">→</span>
         </button>
       </div>
@@ -651,7 +652,7 @@ onBeforeUnmount(() => {
             @click="pvpSubTab = 'online'"
           >
             <span class="sub-icon">🌐</span>
-            <span>Online (2 Phones)</span>
+            <span>{{ t('subtab_online') }}</span>
           </button>
           <button
             type="button"
@@ -660,21 +661,21 @@ onBeforeUnmount(() => {
             @click="pvpSubTab = 'pass'"
           >
             <span class="sub-icon">📱</span>
-            <span>Pass & Play</span>
+            <span>{{ t('subtab_pass') }}</span>
           </button>
         </div>
 
         <!-- Online (2 Phones via Room Code) -->
         <div v-if="pvpSubTab === 'online'" class="online-setup-box">
           <div class="field">
-            <label for="barricade-room-code">Match Code</label>
+            <label for="barricade-room-code">{{ t('match_code_label') }}</label>
             <div class="code-input-row">
               <input
                 id="barricade-room-code"
                 v-model="onlineCode"
                 type="text"
                 maxlength="8"
-                placeholder="e.g. WALL8"
+                :placeholder="t('match_code_placeholder')"
                 class="input-code"
                 autocomplete="off"
                 autocapitalize="characters"
@@ -684,23 +685,23 @@ onBeforeUnmount(() => {
               <button
                 type="button"
                 class="btn ghost dice-btn"
-                title="Generate Random Code"
+                title="Random Code"
                 @click="generateRandomCode"
               >
                 🎲
               </button>
             </div>
-            <small class="field-hint">Share this code with your friend on their phone.</small>
+            <small class="field-hint">{{ t('match_code_hint') }}</small>
           </div>
 
           <div class="field">
-            <label for="barricade-player-name">Your Nickname</label>
+            <label for="barricade-player-name">{{ t('nickname_label') }}</label>
             <input
               id="barricade-player-name"
               v-model="playerName"
               type="text"
               maxlength="20"
-              placeholder="Your Name"
+              :placeholder="t('nickname_placeholder')"
               class="input-name"
             />
           </div>
@@ -711,34 +712,32 @@ onBeforeUnmount(() => {
             :disabled="!onlineCode || onlineCode.length < 3"
             @click="startOnlineMatch(onlineCode)"
           >
-            <span>Start / Join Online Match</span>
+            <span>{{ t('btn_start_online') }}</span>
             <span class="arrow-icon">→</span>
           </button>
 
           <div class="online-steps">
-            <span class="step-badge">1. Pick code</span>
+            <span class="step-badge">{{ t('step_1') }}</span>
             <span class="step-sep">·</span>
-            <span class="step-badge">2. Friend enters code</span>
+            <span class="step-badge">{{ t('step_2') }}</span>
             <span class="step-sep">·</span>
-            <span class="step-badge">3. Play live!</span>
+            <span class="step-badge">{{ t('step_3') }}</span>
           </div>
         </div>
 
         <!-- Pass & Play (1 Phone) -->
         <div v-else class="pass-setup-box">
-          <p class="pass-desc">
-            Take turns moving pawns and placing 10 wooden barricades on this same device. No internet required!
-          </p>
+          <p class="pass-desc">{{ t('pass_desc') }}</p>
 
           <button class="btn primary main-cta" type="button" @click="startPassMatch">
-            <span>Start Pass & Play Match</span>
+            <span>{{ t('btn_start_pass') }}</span>
             <span class="arrow-icon">→</span>
           </button>
         </div>
       </div>
 
       <button class="btn link small back-hub-btn" type="button" @click="emit('back-to-hub')">
-        ← Back to Games Hub
+        {{ t('btn_back_hub') }}
       </button>
     </section>
 
@@ -749,8 +748,8 @@ onBeforeUnmount(() => {
     >
       <header class="lobby-header">
         <span class="hub-icon-badge barricade-icon">🧱</span>
-        <h2>Waiting for Opponent</h2>
-        <p class="lede">Ask your friend to open the game and enter this code on their phone:</p>
+        <h2>{{ t('lobby_title') }}</h2>
+        <p class="lede">{{ t('lobby_lede') }}</p>
       </header>
 
       <div class="code-banner">
@@ -759,26 +758,26 @@ onBeforeUnmount(() => {
 
       <div class="lobby-actions">
         <button class="btn primary full share-btn" type="button" @click="shareInvite">
-          <span>📤 Share Invite Link</span>
+          <span>{{ t('btn_share_link') }}</span>
         </button>
 
         <div class="copy-row">
           <button class="btn ghost small" type="button" @click="copyCode">
-            {{ copied === 'code' ? '✓ Code Copied' : '📋 Copy Code' }}
+            {{ copied === 'code' ? t('btn_copied_code') : t('btn_copy_code') }}
           </button>
           <button class="btn ghost small" type="button" @click="copyLink">
-            {{ copied === 'link' ? '✓ Link Copied' : '🔗 Copy Link' }}
+            {{ copied === 'link' ? t('btn_copied_link') : t('btn_copy_link') }}
           </button>
         </div>
       </div>
 
       <div class="waiting-indicator">
         <span class="spinner" aria-hidden="true"></span>
-        <span class="waiting-text">Waiting for Player 2 to join on phone 2…</span>
+        <span class="waiting-text">{{ t('waiting_phone2') }}</span>
       </div>
 
       <button class="btn link danger small back-setup-btn" type="button" @click="leaveGame">
-        ← Cancel / Change Code
+        {{ t('btn_cancel_code') }}
       </button>
     </section>
 
@@ -787,7 +786,7 @@ onBeforeUnmount(() => {
       <!-- Top Bar -->
       <header class="barricade-top">
         <button class="btn link small" type="button" @click="leaveGame">
-          ← {{ activeMode === 'online' ? 'Leave' : 'Mode' }}
+          {{ activeMode === 'online' ? t('btn_leave') : t('btn_mode') }}
         </button>
 
         <!-- Center Match Tag / Code Chip -->
@@ -796,11 +795,11 @@ onBeforeUnmount(() => {
             <button class="code-pill-btn" type="button" title="Click to copy invite" @click="shareInvite">
               <span class="pulse-dot" :class="{ offline: !onlineRoom?.opponentOnline }"></span>
               <strong class="code-text">{{ onlineRoom?.code }}</strong>
-              <small class="round-badge">R{{ state.round || 1 }}</small>
+              <small class="round-badge">{{ t('round_badge') }}{{ state.round || 1 }}</small>
             </button>
           </template>
           <span v-else class="game-tag">
-            {{ activeMode === 'ai' ? `vs AI (${difficulty})` : 'Pass & Play' }}
+            {{ activeMode === 'ai' ? `vs AI (${difficulty})` : t('subtab_pass') }}
           </span>
         </div>
 
@@ -810,7 +809,7 @@ onBeforeUnmount(() => {
           type="button"
           @click="restartLocalGame"
         >
-          Restart
+          {{ t('btn_restart') }}
         </button>
         <button
           v-else
@@ -819,11 +818,11 @@ onBeforeUnmount(() => {
           title="Share Invite"
           @click="shareInvite"
         >
-          Share
+          {{ t('btn_share') }}
         </button>
       </header>
 
-      <!-- Player HUD: Beautiful dual-cards with avatars, scores, turns & wall racks -->
+      <!-- Player HUD: Clean single-line cards with Avatars, Names, Status & Sleek Wall Racks -->
       <div class="racks-row">
         <!-- Player 0 (Red / Bottom) -->
         <div
@@ -841,7 +840,7 @@ onBeforeUnmount(() => {
               <span class="hud-status">{{ p0Status }}</span>
             </div>
           </div>
-          <div class="wall-rack" title="Walls Remaining">
+          <div class="wall-rack" :title="t('walls_title')">
             <div class="wall-sticks">
               <span
                 v-for="i in 10"
@@ -870,7 +869,7 @@ onBeforeUnmount(() => {
               <span class="hud-status">{{ p1Status }}</span>
             </div>
           </div>
-          <div class="wall-rack" title="Walls Remaining">
+          <div class="wall-rack" :title="t('walls_title')">
             <div class="wall-sticks">
               <span
                 v-for="i in 10"
@@ -906,13 +905,13 @@ onBeforeUnmount(() => {
             :disabled="Boolean(state.rematch?.[myPlayerIndex])"
             @click="requestOnlineRematch"
           >
-            {{ state.rematch?.[myPlayerIndex] ? '⏳ Waiting for opponent rematch…' : '🔄 Request Rematch' }}
+            {{ state.rematch?.[myPlayerIndex] ? t('btn_waiting_rematch') : t('btn_rematch') }}
           </button>
-          <small class="rematch-subtext">Starter automatically alternates each round for fairness!</small>
+          <small class="rematch-subtext">{{ t('rematch_note') }}</small>
         </template>
         <template v-else>
           <button class="btn primary full rematch-btn" type="button" @click="restartLocalGame">
-            🔄 Play Again
+            {{ t('btn_play_again') }}
           </button>
         </template>
       </div>
@@ -940,13 +939,13 @@ onBeforeUnmount(() => {
               <span
                 v-if="p0.row === r - 1 && p0.col === c - 1"
                 class="pawn red-pawn"
-                title="Red Pawn"
+                title="Red"
               ></span>
               <!-- Pawn 1 (Blue / Top) -->
               <span
                 v-else-if="p1.row === r - 1 && p1.col === c - 1"
                 class="pawn blue-pawn"
-                title="Blue Pawn"
+                title="Blue"
               ></span>
               <!-- Legal Move Hint Dot -->
               <span
@@ -980,7 +979,7 @@ onBeforeUnmount(() => {
                 'preview-v': wallOrientation === 'V',
               }"
               :style="getTouchTargetStyle(r - 1, c - 1)"
-              :title="`Drop ${wallOrientation === 'H' ? 'horizontal' : 'vertical'} wall at (${r},${c})`"
+              :title="`Drop wall at (${r},${c})`"
               @click="onIntersectionClick(r - 1, c - 1)"
             >
               <span class="touch-dot"></span>
@@ -999,7 +998,7 @@ onBeforeUnmount(() => {
           @click="toggleActionMode('move')"
         >
           <span class="dock-icon">🏃</span>
-          <span class="dock-label">Move</span>
+          <span class="dock-label">{{ t('btn_move') }}</span>
         </button>
 
         <button
@@ -1010,18 +1009,18 @@ onBeforeUnmount(() => {
           @click="toggleActionMode('wall')"
         >
           <span class="dock-icon">🧱</span>
-          <span class="dock-label">Wall ({{ currentWalls }})</span>
+          <span class="dock-label">{{ t('btn_wall') }} ({{ currentWalls }})</span>
         </button>
 
         <button
           type="button"
           class="btn dock-btn rotate-btn"
           :class="{ active: actionMode === 'wall' }"
-          title="Toggle Horizontal or Vertical wall orientation"
+          title="Orientation"
           @click="toggleOrientation"
         >
           <span class="dock-icon">{{ wallOrientation === 'H' ? '━' : '┃' }}</span>
-          <span class="dock-label">{{ wallOrientation === 'H' ? 'Horiz' : 'Vert' }}</span>
+          <span class="dock-label">{{ wallOrientation === 'H' ? t('btn_horiz') : t('btn_vert') }}</span>
         </button>
       </footer>
 
