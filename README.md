@@ -1,6 +1,10 @@
 # 🎮 Game Arena — 1v1 Mobile & Telegram Mini App
 
-A fast, modern dual-game web arena featuring **Barricade (Quoridor 9×9)** and **Tic Tac Toe (3×3 Online)**. Designed specifically for **Telegram Mini Apps**, mobile phones, and desktop browsers with **zero accounts**, **zero database**, and uniform **5px corner** styling.
+A fast, modern dual-game web arena featuring **Barricade (Quoridor 9×9)** and **Tic Tac Toe (3×3)**. Designed specifically for **Telegram Mini Apps**, mobile phones, and desktop browsers with **zero accounts**, **zero database**, and uniform **5px corner** styling.
+
+Both games feature **2 distinct ways to play**:
+1. 🤖 **Play with Computer (Solo)** — Play alone anytime against intelligent AI bots!
+2. 👥 **Play with 2 People (PvP)** — Challenge friends via online room codes or pass-and-play on the same phone screen!
 
 ---
 
@@ -25,7 +29,8 @@ When you open any link, you are greeted with the **Game Hub** to pick which game
      [ 🧱 Barricade (Quoridor) ]                     [ ✕○ Tic Tac Toe ]
      • 9×9 Strategy Grid                            • 3×3 Instant Duel
      • Move Pawn or Drop Walls                      • Fair Alternating Turns
-     • 🤖 AI Bot + 👥 Pass & Play                   • 🌐 Real-time Online Sync
+     • 🤖 AI Bot (Easy, Med, Hard)                  • 🤖 AI Bot (Easy, Med, Master)
+     • 👥 Pass & Play (Local 2P)                    • 👥 PvP: Online & Pass-and-Play
 ```
 
 ---
@@ -51,17 +56,27 @@ On your turn, you must choose strictly **one action**:
    - **Golden Rule (No Trapping)**: You can never completely seal off a player. A wall placement is strictly illegal if it eliminates all open paths to the goal for either player (validated via live BFS pathfinding).
 
 #### 3. Game Modes
-- 🤖 **Single Player vs AI**: Play solo against an intelligent A* pathfinder bot (Easy, Medium, Hard).
-- 👥 **Pass & Play (2 Players)**: Take turns on the same mobile phone screen.
+- 🤖 **Option 1: Play with Computer (Solo)**: Play alone with an intelligent A* pathfinder bot (Easy, Medium, Hard).
+- 👥 **Option 2: Play with 2 People (PvP)**: Pass & Play taking turns on the same mobile phone screen.
 
 ---
 
-### Game 2: ✕○ Tic Tac Toe (3×3 Online)
+### Game 2: ✕○ Tic Tac Toe (3×3)
 
-A lightning-fast 1v1 multiplayer game synchronized across devices over peer-to-peer WebSocket MQTT relays:
+A lightning-fast, fair 3×3 game playable alone or with friends:
+
+#### 1. Game Modes
+- 🤖 **Option 1: Play with Computer (Solo)**:
+  - **Easy**: Relaxed, casual bot for quick fun.
+  - **Medium**: Blocks your winning lines and seizes opportunities.
+  - **Master**: Unbeatable Minimax algorithm!
+- 👥 **Option 2: Play with 2 People (PvP)**:
+  - **Online 1v1**: Share a 5-character match code or invite link. Connected over instant peer-to-peer WebSocket MQTT relays (zero accounts or database needed).
+  - **Pass & Play (Local 2P)**: Play together on the same phone screen offline.
+
+#### 2. Core Rules & Fair Play
 - ⚖️ **Fair Alternating Turns**: Round 1 Host (**X**) starts, Round 2 Guest (**O**) starts, Round 3 Host (**X**) starts. Eliminates the first-mover advantage!
 - 🏆 **Live Scoreboard**: Persistent win/tie tracking across consecutive rematches.
-- 🔗 **Room Codes**: Share a 5-character code or 1-tap link to play from anywhere with no account required.
 - 🛡️ **App Backgrounding Protection**: Switching to WhatsApp/Telegram to send match codes won't disconnect or close the room.
 
 ---
@@ -91,11 +106,12 @@ A lightning-fast 1v1 multiplayer game synchronized across devices over peer-to-p
 # 1. Install dependencies
 npm install
 
-# 2. Run automated test suite (all 11 tests pass)
+# 2. Run automated test suite (all 16 tests pass)
 npm test
 
 # 3. Start local dev server
 npm run dev
-```
 
-Built with **Vue 3** and **Vite**. Deployed on **Vercel**.
+# 4. Production build
+npm run build
+```

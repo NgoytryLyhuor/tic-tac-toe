@@ -21,6 +21,7 @@ const emit = defineEmits(['back-to-hub'])
 const telegram = initTelegram()
 
 // Game setup & mode
+const setupTab = ref('ai') // 'ai' | 'pass'
 const gameMode = ref('ai') // 'ai' | 'pass'
 const difficulty = ref('medium') // 'easy' | 'medium' | 'hard'
 const inSetup = ref(true)
@@ -45,6 +46,7 @@ function startGame(mode, diff = 'medium') {
   playClickSound()
   gameMode.value = mode
   difficulty.value = diff
+  setupTab.value = mode
   state.value = createBarricadeState(mode, diff)
   actionMode.value = 'move'
   wallOrientation.value = 'H'
@@ -192,6 +194,37 @@ const turnBannerText = computed(() => {
   }
   return state.value.turn === 0 ? 'Your Turn — Move or place wall' : 'Opponent Turn…'
 })
+
+function getHWallStyle(r, c) {
+  const top = (r * 100) / 9
+  const left = ((c - 1) * 100) / 9
+  const width = 200 / 9
+  return {
+    top: `calc(${top}% - 3.5px)`,
+    left: `calc(${left}% + 4px)`,
+    width: `calc(${width}% - 8px)`,
+  }
+}
+
+function getVWallStyle(r, c) {
+  const left = (c * 100) / 9
+  const top = ((r - 1) * 100) / 9
+  const height = 200 / 9
+  return {
+    left: `calc(${left}% - 3.5px)`,
+    top: `calc(${top}% + 4px)`,
+    height: `calc(${height}% - 8px)`,
+  }
+}
+
+function getIntersectionStyle(r, c) {
+  const top = (r * 100) / 9
+  const left = (c * 100) / 9
+  return {
+    top: `calc(${top}% - 10px)`,
+    left: `calc(${left}% - 10px)`,
+  }
+}
 </script>
 
 <template>
@@ -204,40 +237,77 @@ const turnBannerText = computed(() => {
         <p class="lede">Race your pawn to the opposite side. Place walls to trap your opponent!</p>
       </div>
 
-      <div class="mode-options">
-        <div class="mode-box">
-          <div class="mode-title">
-            <span class="mode-icon">🤖</span>
-            <div>
-              <strong>Single Player vs AI</strong>
-              <small>Play solo with an intelligent pathfinder bot</small>
-            </div>
-          </div>
+      <!-- Top Mode Switcher: Solo vs 2 Players -->
+      <div class="mode-tabs">
+        <button
+          type="button"
+          class="mode-tab-btn"
+          :class="{ active: setupTab === 'ai' }"
+          @click="setupTab = 'ai'"
+        >
+          <span class="tab-icon">🤖</span>
+          <span class="tab-label">vs Computer</span>
+        </button>
+        <button
+          type="button"
+          class="mode-tab-btn"
+          :class="{ active: setupTab === 'pass' }"
+          @click="setupTab = 'pass'"
+        >
+          <span class="tab-icon">👥</span>
+          <span class="tab-label">2 Players (PvP)</span>
+        </button>
+      </div>
+
+      <!-- Tab 1: vs Computer (Solo) -->
+      <div v-if="setupTab === 'ai'" class="ai-setup-pane">
+        <div class="field">
+          <span>AI Difficulty</span>
           <div class="diff-buttons">
-            <button class="btn ghost small" type="button" @click="startGame('ai', 'easy')">
+            <button
+              class="btn small"
+              type="button"
+              :class="difficulty === 'easy' ? 'primary' : 'ghost'"
+              @click="difficulty = 'easy'"
+            >
               Easy
             </button>
-            <button class="btn primary small" type="button" @click="startGame('ai', 'medium')">
-              Medium
+            <button
+              class="btn small"
+              type="button"
+              :class="difficulty === 'medium' ? 'primary' : 'ghost'"
+              @click="difficulty = 'medium'"
+            >
+              Medium ⭐
             </button>
-            <button class="btn ghost small" type="button" @click="startGame('ai', 'hard')">
+            <button
+              class="btn small"
+              type="button"
+              :class="difficulty === 'hard' ? 'primary' : 'ghost'"
+              @click="difficulty = 'hard'"
+            >
               Hard ⚔️
             </button>
           </div>
+          <small class="diff-help">Smart pathfinding bot that builds barricades and shortcuts.</small>
         </div>
 
-        <div class="mode-box">
-          <div class="mode-title">
-            <span class="mode-icon">👥</span>
-            <div>
-              <strong>Pass & Play (2 Players)</strong>
-              <small>Take turns on the same phone screen</small>
-            </div>
-          </div>
-          <button class="btn ghost full" type="button" @click="startGame('pass')">
-            Start 2-Player Match
-          </button>
-        </div>
+        <button class="btn primary main-cta" type="button" @click="startGame('ai', difficulty)">
+          <span>Play Solo vs AI</span>
+          <span class="arrow-icon">→</span>
+        </button>
+      </div>
+
+      <!-- Tab 2: Pass & Play (2 Players) -->
+      <div v-else class="pass-setup-pane">
+        <p class="pass-desc">
+          Take turns moving pawns and placing 10 wooden barricades on this same device. No internet required!
+        </p>
+
+        <button class="btn primary main-cta" type="button" @click="startGame('pass')">
+          <span>Start 2-Player Match</span>
+          <span class="arrow-icon">→</span>
+        </button>
       </div>
 
       <button class="btn link small back-hub-btn" type="button" @click="emit('back-to-hub')">
@@ -260,168 +330,168 @@ const turnBannerText = computed(() => {
         </button>
       </header>
 
-      <!-- Player 1 / Top HUD (Blue) -->
-      <div class="player-hud top-hud" :class="{ active: state.turn === 1, winner: state.winner === 1 }">
-        <div class="hud-left">
-          <span class="pawn-dot blue-pawn"></span>
-          <div class="hud-names">
-            <strong>{{ gameMode === 'ai' ? 'Bot (Blue)' : 'Player 2 (Blue)' }}</strong>
-            <small>Target: Bottom row</small>
-          </div>
-        </div>
-        <div class="wall-rack" title="Remaining Walls">
-          <span
-            v-for="i in 10"
-            :key="i"
-            class="wall-stick blue-stick"
-            :class="{ spent: i > state.wallsLeft[1] }"
-          ></span>
-          <span class="wall-count">{{ state.wallsLeft[1] }}</span>
-        </div>
-      </div>
-
-      <!-- Turn Banner -->
-      <div class="turn-bar" :class="{ mine: state.turn === 0, win: state.winner !== null }">
-        <span class="banner-msg">{{ turnBannerText }}</span>
-      </div>
-
-      <!-- 9x9 Board with Intersections for Walls -->
-      <div class="board-container">
-        <div class="quoridor-grid">
-          <!-- 81 Cells -->
-          <div
-            v-for="idx in 81"
-            :key="'cell-' + idx"
-            class="grid-cell"
-            :class="{
-              'legal-target': isCellLegalMove(Math.floor((idx - 1) / 9), (idx - 1) % 9),
-            }"
-            @click="onCellClick(Math.floor((idx - 1) / 9), (idx - 1) % 9)"
-          >
-            <!-- Player 0 Pawn (Red) -->
-            <div
-              v-if="state.pawns[0].row === Math.floor((idx - 1) / 9) && state.pawns[0].col === (idx - 1) % 9"
-              class="pawn red-pawn"
-            ></div>
-
-            <!-- Player 1 Pawn (Blue) -->
-            <div
-              v-else-if="state.pawns[1].row === Math.floor((idx - 1) / 9) && state.pawns[1].col === (idx - 1) % 9"
-              class="pawn blue-pawn"
-            ></div>
-
-            <!-- Legal Move Dot Indicator -->
+      <!-- Player Racks (Walls remaining) -->
+      <div class="racks-row">
+        <!-- Player 0 (Bottom / Red) -->
+        <div class="rack-badge" :class="{ active: state.turn === 0 }">
+          <span class="pawn-pip red-pip"></span>
+          <span class="rack-name">{{ gameMode === 'ai' ? 'You' : 'Red' }}</span>
+          <div class="wall-sticks">
             <span
-              v-else-if="isCellLegalMove(Math.floor((idx - 1) / 9), (idx - 1) % 9)"
-              class="move-indicator-dot"
+              v-for="w in state.players[0].walls"
+              :key="w"
+              class="wall-stick red"
             ></span>
           </div>
-
-          <!-- 64 Wall Intersection Touch Points -->
-          <div
-            v-for="interIdx in 64"
-            :key="'inter-' + interIdx"
-            class="wall-intersection"
-            :style="{
-              top: `calc(${((Math.floor((interIdx - 1) / 8) + 1) * 100) / 9}% - 8px)`,
-              left: `calc(${(((interIdx - 1) % 8 + 1) * 100) / 9}% - 8px)`,
-            }"
-            :class="{
-              'active-mode': actionMode === 'wall',
-              'orient-h': wallOrientation === 'H',
-              'orient-v': wallOrientation === 'V',
-            }"
-            @click.stop="onIntersectionClick(Math.floor((interIdx - 1) / 8), (interIdx - 1) % 8)"
-          ></div>
-
-          <!-- Rendered Placed Walls -->
-          <div
-            v-for="(w, wIdx) in state.walls"
-            :key="'wall-' + wIdx"
-            class="placed-wall"
-            :class="[
-              w.orientation === 'H' ? 'placed-wall-h' : 'placed-wall-v',
-              w.placedBy === 0 ? 'red-wall' : 'blue-wall',
-            ]"
-            :style="
-              w.orientation === 'H'
-                ? {
-                    top: `calc(${((w.row + 1) * 100) / 9}% - 3px)`,
-                    left: `calc(${(w.col * 100) / 9}% + 4px)`,
-                    width: `calc(${(2 * 100) / 9}% - 8px)`,
-                  }
-                : {
-                    top: `calc(${(w.row * 100) / 9}% + 4px)`,
-                    left: `calc(${((w.col + 1) * 100) / 9}% - 3px)`,
-                    height: `calc(${(2 * 100) / 9}% - 8px)`,
-                  }
-            "
-          ></div>
+          <span class="rack-num">{{ state.players[0].walls }}</span>
         </div>
-      </div>
 
-      <!-- Player 0 / Bottom HUD (Red / You) -->
-      <div class="player-hud bottom-hud" :class="{ active: state.turn === 0, winner: state.winner === 0 }">
-        <div class="hud-left">
-          <span class="pawn-dot red-pawn"></span>
-          <div class="hud-names">
-            <strong>{{ gameMode === 'ai' ? 'You (Red)' : 'Player 1 (Red)' }}</strong>
-            <small>Target: Top row</small>
+        <!-- Player 1 (Top / Blue) -->
+        <div class="rack-badge" :class="{ active: state.turn === 1 }">
+          <span class="pawn-pip blue-pip"></span>
+          <span class="rack-name">{{ gameMode === 'ai' ? 'AI' : 'Blue' }}</span>
+          <div class="wall-sticks">
+            <span
+              v-for="w in state.players[1].walls"
+              :key="w"
+              class="wall-stick blue"
+            ></span>
           </div>
-        </div>
-        <div class="wall-rack" title="Remaining Walls">
-          <span
-            v-for="i in 10"
-            :key="i"
-            class="wall-stick red-stick"
-            :class="{ spent: i > state.wallsLeft[0] }"
-          ></span>
-          <span class="wall-count">{{ state.wallsLeft[0] }}</span>
+          <span class="rack-num">{{ state.players[1].walls }}</span>
         </div>
       </div>
 
-      <!-- Action Controls -->
-      <div v-if="state.winner === null" class="action-dock">
+      <!-- Turn & Status Banner -->
+      <div class="turn-banner" :class="{ 'turn-mine': isMyTurn, warn: isAiThinking }">
+        <span v-if="isAiThinking" class="spinner small" aria-hidden="true"></span>
+        <span class="banner-text">{{ turnBannerText }}</span>
+      </div>
+
+      <!-- 9x9 Board -->
+      <div class="board-container">
+        <div class="quoridor-grid">
+          <!-- 81 Squares (9x9) -->
+          <template v-for="r in 9" :key="`row-${r}`">
+            <button
+              v-for="c in 9"
+              :key="`cell-${r-1}-${c-1}`"
+              type="button"
+              class="q-cell"
+              :class="{
+                'has-p0': state.players[0].row === r - 1 && state.players[0].col === c - 1,
+                'has-p1': state.players[1].row === r - 1 && state.players[1].col === c - 1,
+                legal: isCellLegalMove(r - 1, c - 1),
+                target0: r - 1 === 0,
+                target1: r - 1 === 8,
+              }"
+              :disabled="!isCellLegalMove(r - 1, c - 1) && !(state.players[0].row === r - 1 && state.players[0].col === c - 1) && !(state.players[1].row === r - 1 && state.players[1].col === c - 1)"
+              @click="onCellClick(r - 1, c - 1)"
+            >
+              <!-- Pawn 0 (Red / You) -->
+              <span
+                v-if="state.players[0].row === r - 1 && state.players[0].col === c - 1"
+                class="pawn red-pawn"
+              ></span>
+              <!-- Pawn 1 (Blue / Opponent) -->
+              <span
+                v-else-if="state.players[1].row === r - 1 && state.players[1].col === c - 1"
+                class="pawn blue-pawn"
+              ></span>
+              <!-- Legal Move Hint Dot -->
+              <span
+                v-else-if="isCellLegalMove(r - 1, c - 1)"
+                class="move-hint"
+              ></span>
+            </button>
+          </template>
+        </div>
+
+        <!-- Horizontal Walls (8 rows x 8 cols) -->
+        <div class="h-walls-overlay">
+          <template v-for="r in 8" :key="`hw-r-${r}`">
+            <span
+              v-for="c in 8"
+              :key="`hw-${r-1}-${c-1}`"
+              class="wall-slot h-slot"
+              :class="{ placed: state.walls.H[r - 1][c - 1] }"
+              :style="getHWallStyle(r, c)"
+            ></span>
+          </template>
+        </div>
+
+        <!-- Vertical Walls (8 rows x 8 cols) -->
+        <div class="v-walls-overlay">
+          <template v-for="r in 8" :key="`vw-r-${r}`">
+            <span
+              v-for="c in 8"
+              :key="`vw-${r-1}-${c-1}`"
+              class="wall-slot v-slot"
+              :class="{ placed: state.walls.V[r - 1][c - 1] }"
+              :style="getVWallStyle(r, c)"
+            ></span>
+          </template>
+        </div>
+
+        <!-- 64 Intersection Wall Anchors (8x8) -->
+        <div class="intersections-grid">
+          <template v-for="r in 8" :key="`int-r-${r}`">
+            <button
+              v-for="c in 8"
+              :key="`int-${r-1}-${c-1}`"
+              type="button"
+              class="intersection-btn"
+              :class="{
+                'can-place': isMyTurn && !isAiThinking && state.players[state.turn].walls > 0 && !state.walls.H[r - 1][c - 1] && !state.walls.V[r - 1][c - 1],
+                'preview-h': actionMode === 'wall' && wallOrientation === 'H',
+                'preview-v': actionMode === 'wall' && wallOrientation === 'V',
+              }"
+              :style="getIntersectionStyle(r, c)"
+              :title="`Place wall at intersection (${r},${c})`"
+              @click="onIntersectionClick(r - 1, c - 1)"
+            >
+              <span class="crosshair"></span>
+            </button>
+          </template>
+        </div>
+      </div>
+
+      <!-- Action Dock (Move vs Wall Mode & Rotate) -->
+      <footer class="action-dock">
         <button
-          class="btn dock-btn"
-          :class="actionMode === 'move' ? 'primary' : 'ghost'"
           type="button"
+          class="dock-btn"
+          :class="{ active: actionMode === 'move' }"
           @click="toggleActionMode('move')"
         >
-          <span>🏃 Move Pawn</span>
+          <span class="dock-icon">🏃</span>
+          <span class="dock-label">Move</span>
         </button>
 
         <button
-          class="btn dock-btn"
-          :class="actionMode === 'wall' ? 'primary' : 'ghost'"
           type="button"
-          :disabled="state.wallsLeft[state.turn] <= 0"
+          class="dock-btn"
+          :class="{ active: actionMode === 'wall' }"
+          :disabled="state.players[state.turn].walls === 0"
           @click="toggleActionMode('wall')"
         >
-          <span>🧱 Place Wall</span>
+          <span class="dock-icon">🧱</span>
+          <span class="dock-label">Wall ({{ state.players[state.turn].walls }})</span>
         </button>
 
         <button
-          v-if="actionMode === 'wall'"
-          class="btn ghost rotate-btn"
           type="button"
-          title="Rotate wall orientation"
+          class="dock-btn rotate-btn"
+          :disabled="actionMode !== 'wall'"
+          title="Toggle Horizontal / Vertical orientation"
           @click="toggleOrientation"
         >
-          <span>🔄 {{ wallOrientation === 'H' ? 'Horizontal' : 'Vertical' }}</span>
+          <span class="dock-icon">{{ wallOrientation === 'H' ? '━' : '┃' }}</span>
+          <span class="dock-label">{{ wallOrientation === 'H' ? 'Horiz' : 'Vert' }}</span>
         </button>
-      </div>
-
-      <!-- Game Over Banner -->
-      <div v-else class="game-over-box">
-        <strong>{{ state.winner === 0 ? '🎉 Victory! You reached the goal!' : '🏁 Match Complete' }}</strong>
-        <button class="btn primary small full" type="button" @click="restartGame">
-          Play Again ⚔️
-        </button>
-      </div>
+      </footer>
 
       <!-- Toast Feedback -->
-      <p v-if="toastMessage" class="alert warn toast-alert" role="alert">
+      <p v-if="toastMessage" class="barricade-toast" role="alert">
         {{ toastMessage }}
       </p>
     </section>

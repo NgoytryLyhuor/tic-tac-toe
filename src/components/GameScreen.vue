@@ -11,8 +11,11 @@ const props = defineProps({
 
 const emit = defineEmits(['move', 'rematch', 'leave', 'copy-link', 'share'])
 
-const you = computed(() => props.room.you)
+const you = computed(() => props.room.you || 'X')
 const opponent = computed(() => (you.value === 'X' ? 'O' : 'X'))
+const isPassAndPlay = computed(() => props.room.mode === 'pass')
+const isAiMode = computed(() => props.room.mode === 'ai')
+
 const myName = computed(() => props.room.players?.[you.value]?.name || 'You')
 const opponentName = computed(() => props.room.players?.[opponent.value]?.name || 'Opponent')
 const isHost = computed(() => you.value === 'X')
@@ -23,7 +26,11 @@ const scores = computed(() => props.room.scores || { X: 0, O: 0, draws: 0 })
 
 const isPlaying = computed(() => props.room.status === 'playing')
 const isFinished = computed(() => props.room.status === 'finished')
-const isMyTurn = computed(() => isPlaying.value && props.room.turn === you.value)
+const isMyTurn = computed(() => {
+  if (!isPlaying.value) return false
+  if (isPassAndPlay.value) return true
+  return props.room.turn === you.value
+})
 const winningLine = computed(() => props.room.result?.line || [])
 
 const connectionLost = computed(
@@ -32,34 +39,74 @@ const connectionLost = computed(
 
 const nextStarter = computed(() => (starter.value === 'X' ? 'O' : 'X'))
 const nextStarterName = computed(() => {
+  if (isPassAndPlay.value) {
+    return props.room.players?.[nextStarter.value]?.name || `Player ${nextStarter.value}`
+  }
   if (nextStarter.value === you.value) return 'You'
   return opponentName.value
 })
 
 const starterLabel = computed(() => {
+  if (isPassAndPlay.value) {
+    const sName = props.room.players?.[starter.value]?.name || `Player ${starter.value}`
+    return `${sName} started first`
+  }
   if (starter.value === you.value) return 'You started first'
   return `${opponentName.value} started first`
 })
+
+function getPlayerRole(symbol) {
+  if (isPassAndPlay.value) return symbol === 'X' ? 'Player 1' : 'Player 2'
+  if (isAiMode.value) return symbol === 'X' ? 'You' : 'Computer'
+  return you.value === symbol ? 'You' : 'Opponent'
+}
+
+function getPlayerName(symbol) {
+  return props.room.players?.[symbol]?.name || (symbol === 'X' ? 'Player 1' : 'Player 2')
+}
 
 const statusBanner = computed(() => {
   if (isFinished.value) {
     const winner = props.room.result?.winner
     if (winner === 'draw') return { text: "It's a draw! Well played.", type: 'draw' }
+    if (isPassAndPlay.value) {
+      const winnerName = props.room.players?.[winner]?.name || `Player ${winner}`
+      return { text: `🏆 ${winnerName} won this round!`, type: 'win' }
+    }
+    if (isAiMode.value) {
+      return winner === you.value
+        ? { text: 'Victory! You defeated the AI! 🎉', type: 'win' }
+        : { text: 'AI won this round. Tap Rematch!', type: 'loss' }
+    }
     if (winner === you.value) return { text: 'Victory! You won this round! 🎉', type: 'win' }
     return { text: `${opponentName.value} won this round.`, type: 'loss' }
   }
+
   if (!isPlaying.value) {
     return { text: 'Waiting for match to resume…', type: 'neutral' }
   }
+
+  if (isAiMode.value && props.room.turn === 'O') {
+    return { text: '🤖 AI is calculating best move…', type: 'turn-theirs' }
+  }
+
+  if (isPassAndPlay.value) {
+    const curName = props.room.players?.[props.room.turn]?.name || `Player ${props.room.turn}`
+    return { text: `${curName}'s Turn (${props.room.turn})`, type: 'turn-mine' }
+  }
+
   if (isHost.value && props.room.opponentOnline === false) {
     return { text: 'Opponent disconnected. Waiting…', type: 'warn' }
   }
+
   if (connectionLost.value) {
     return { text: 'Reconnecting to relay…', type: 'warn' }
   }
+
   if (isMyTurn.value) {
     return { text: 'Your Turn — Tap open square', type: 'turn-mine' }
   }
+
   return { text: `Waiting for ${opponentName.value}…`, type: 'turn-theirs' }
 })
 
@@ -93,7 +140,7 @@ function cellClass(index) {
     'cell-x': val === 'X',
     'cell-o': val === 'O',
     win: winningLine.value.includes(index),
-    playable: isMyTurn.value && val === null,
+    playable: isMyTurn.value && val === null && !props.busy,
   }
 }
 </script>
@@ -105,16 +152,17 @@ function cellClass(index) {
       <button
         class="code-chip"
         type="button"
-        title="Copy or share match code"
+        :title="isAiMode || isPassAndPlay ? 'Game Mode' : 'Copy or share match code'"
         @click="emit('copy-link')"
       >
-        <span class="chip-label">Room</span>
+        <span class="chip-label">{{ isAiMode ? 'Solo' : isPassAndPlay ? 'Local' : 'Room' }}</span>
         <strong class="chip-val">{{ props.room.code }}</strong>
         <span v-if="props.copied === 'link'" class="chip-flash">✓</span>
       </button>
 
       <div class="top-nav-right">
         <button
+          v-if="!isAiMode && !isPassAndPlay"
           class="btn ghost small share-quick"
           type="button"
           title="Share invite link"
@@ -149,15 +197,15 @@ function cellClass(index) {
         class="player-card"
         :class="{
           active: isPlaying && props.room.turn === 'X',
-          you: you === 'X',
+          you: isPassAndPlay ? props.room.turn === 'X' : you === 'X',
           winner: props.room.result?.winner === 'X',
         }"
       >
         <div class="player-top">
           <span class="symbol-badge x">✕</span>
-          <span class="player-role">{{ you === 'X' ? 'You' : 'Opponent' }}</span>
+          <span class="player-role">{{ getPlayerRole('X') }}</span>
         </div>
-        <strong class="player-name">{{ you === 'X' ? myName : opponentName }}</strong>
+        <strong class="player-name">{{ getPlayerName('X') }}</strong>
         <div class="score-display">
           <span class="score-val">{{ scores.X }}</span>
           <span class="score-label">pts</span>
@@ -179,15 +227,15 @@ function cellClass(index) {
         class="player-card"
         :class="{
           active: isPlaying && props.room.turn === 'O',
-          you: you === 'O',
+          you: isPassAndPlay ? props.room.turn === 'O' : you === 'O',
           winner: props.room.result?.winner === 'O',
         }"
       >
         <div class="player-top">
           <span class="symbol-badge o">○</span>
-          <span class="player-role">{{ you === 'O' ? 'You' : 'Opponent' }}</span>
+          <span class="player-role">{{ getPlayerRole('O') }}</span>
         </div>
-        <strong class="player-name">{{ you === 'O' ? myName : opponentName }}</strong>
+        <strong class="player-name">{{ getPlayerName('O') }}</strong>
         <div class="score-display">
           <span class="score-val">{{ scores.O }}</span>
           <span class="score-label">pts</span>
@@ -263,14 +311,17 @@ function cellClass(index) {
     <!-- Round Finished Modal / Action Card -->
     <div v-if="isFinished" class="result-box" :class="{ win: props.room.result?.winner === you }">
       <div class="result-info">
-        <strong v-if="props.room.result?.winner === you" class="result-title win-text">
+        <strong v-if="isPassAndPlay && props.room.result?.winner !== 'draw'" class="result-title win-text">
+          🎉 {{ getPlayerName(props.room.result?.winner) }} Wins!
+        </strong>
+        <strong v-else-if="props.room.result?.winner === you" class="result-title win-text">
           🎉 Victory!
         </strong>
         <strong v-else-if="props.room.result?.winner === 'draw'" class="result-title draw-text">
           🤝 It's a Tie!
         </strong>
         <strong v-else class="result-title loss-text">
-          Round to {{ opponentName }}
+          {{ isAiMode ? '🤖 AI won this round' : `Round to ${opponentName}` }}
         </strong>
 
         <div class="next-round-info">
@@ -280,14 +331,15 @@ function cellClass(index) {
       </div>
 
       <div class="rematch-actions">
+        <!-- In local AI or Pass & Play, rematch is immediate -->
         <button
-          v-if="!rematchVoted"
+          v-if="!rematchVoted || isAiMode || isPassAndPlay"
           class="btn primary rematch-btn"
           type="button"
           :disabled="props.busy"
           @click="emit('rematch')"
         >
-          <span v-if="opponentVoted">Accept Rematch ⚔️</span>
+          <span v-if="opponentVoted && !isAiMode && !isPassAndPlay">Accept Rematch ⚔️</span>
           <span v-else>Play Again ⚔️</span>
         </button>
 
@@ -298,8 +350,8 @@ function cellClass(index) {
       </div>
     </div>
 
-    <!-- Quick Footer Invite Link -->
-    <p class="invite-footer">
+    <!-- Quick Footer Invite Link (Online mode) -->
+    <p v-if="!isAiMode && !isPassAndPlay" class="invite-footer">
       Invite friend:
       <button class="inline-link" type="button" @click="emit('share')">
         {{ props.copied === 'link' ? 'Copied ✓' : 'Share link 🔗' }}

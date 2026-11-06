@@ -6,7 +6,8 @@ import HomeScreen from './components/HomeScreen.vue'
 import LobbyScreen from './components/LobbyScreen.vue'
 import GameScreen from './components/GameScreen.vue'
 import { GameSession } from './lib/gameSession.js'
-import { normalizeCode } from './lib/gameLogic.js'
+import { decideResult, normalizeCode } from './lib/gameLogic.js'
+import { getTicTacToeAIMove } from './lib/ticTacToeAI.js'
 import {
   clearSession,
   getPlayerId,
@@ -32,6 +33,10 @@ const playerId = getPlayerId()
 
 // Active game view: 'hub' | 'barricade' | 'ttt'
 const currentGame = ref('hub')
+
+// Tic Tac Toe Mode: 'online' | 'ai' | 'pass'
+const tttMode = ref('online')
+const aiDifficulty = ref('medium')
 
 const room = ref(null)
 const code = ref('')
@@ -171,6 +176,7 @@ function startJoin(nextCode, preferredBroker = -1) {
     return
   }
 
+  tttMode.value = 'online'
   error.value = ''
   loading.value = true
   code.value = normalized
@@ -187,29 +193,223 @@ function joinMatch() {
   startJoin(code.value)
 }
 
-function playMove(cell) {
-  if (!session || !room.value) return
-  if (room.value.status !== 'playing' || room.value.turn !== room.value.you) return
-
+// Start Solo AI Match
+function startSoloAIMatch(diff = 'medium') {
+  playClickSound()
   telegram.haptic('light')
-  playMoveSound(room.value.you)
+  tttMode.value = 'ai'
+  aiDifficulty.value = diff
+  session?.leave()
+  session = null
 
-  const result = session.move(cell)
-  if (!result.ok) {
-    error.value = result.error
-    telegram.haptic('warning')
+  const pName = name.value.trim() || 'You'
+  const diffLabel = diff === 'master' ? 'Master' : diff.charAt(0).toUpperCase() + diff.slice(1)
+  const botName = `AI (${diffLabel})`
+
+  room.value = {
+    code: `AI-${diff.toUpperCase()}`,
+    mode: 'ai',
+    status: 'playing',
+    turn: 'X',
+    starter: 'X',
+    round: 1,
+    you: 'X',
+    opponentOnline: true,
+    players: {
+      X: { name: pName },
+      O: { name: botName },
+    },
+    scores: { X: 0, O: 0, draws: 0 },
+    board: Array(9).fill(null),
+    result: null,
+    rematch: { X: false, O: false },
+    version: 1,
+  }
+}
+
+// Start Local Pass & Play Match
+function startPassAndPlayMatch() {
+  playClickSound()
+  telegram.haptic('light')
+  tttMode.value = 'pass'
+  session?.leave()
+  session = null
+
+  const p1Name = name.value.trim() || 'Player 1'
+
+  room.value = {
+    code: 'LOCAL-2P',
+    mode: 'pass',
+    status: 'playing',
+    turn: 'X',
+    starter: 'X',
+    round: 1,
+    you: 'X',
+    opponentOnline: true,
+    players: {
+      X: { name: p1Name },
+      O: { name: 'Player 2' },
+    },
+    scores: { X: 0, O: 0, draws: 0 },
+    board: Array(9).fill(null),
+    result: null,
+    rematch: { X: false, O: false },
+    version: 1,
+  }
+}
+
+// Trigger AI Move after short thinking delay
+function triggerAiMove() {
+  if (tttMode.value !== 'ai' || !room.value || room.value.status !== 'playing') return
+  if (room.value.turn !== 'O') return
+
+  busy.value = true
+  setTimeout(() => {
+    if (!room.value || room.value.status !== 'playing' || room.value.turn !== 'O') {
+      busy.value = false
+      return
+    }
+
+    const botCell = getTicTacToeAIMove(room.value.board, aiDifficulty.value, 'O')
+    if (botCell === null || botCell === undefined) {
+      busy.value = false
+      return
+    }
+
+    const newBoard = [...room.value.board]
+    newBoard[botCell] = 'O'
+    room.value.board = newBoard
+    playMoveSound('O')
+    telegram.haptic('light')
+
+    const outcome = decideResult(newBoard)
+    if (outcome) {
+      handleLocalGameEnd(outcome)
+    } else {
+      room.value.turn = 'X'
+    }
+    busy.value = false
+  }, 380)
+}
+
+function handleLocalGameEnd(outcome) {
+  room.value.result = outcome
+  room.value.status = 'finished'
+  room.value.version = (room.value.version || 1) + 1
+
+  if (outcome.winner === 'X') {
+    room.value.scores.X += 1
+  } else if (outcome.winner === 'O') {
+    room.value.scores.O += 1
+  } else if (outcome.winner === 'draw') {
+    room.value.scores.draws += 1
+  }
+
+  if (tttMode.value === 'ai') {
+    if (outcome.winner === room.value.you) {
+      playWinSound()
+      telegram.haptic('success')
+    } else if (outcome.winner === 'draw') {
+      playDrawSound()
+      telegram.haptic('warning')
+    } else {
+      playDrawSound()
+      telegram.haptic('error')
+    }
+  } else {
+    if (outcome.winner === 'draw') {
+      playDrawSound()
+      telegram.haptic('warning')
+    } else {
+      playWinSound()
+      telegram.haptic('success')
+    }
+  }
+}
+
+function playMove(cell) {
+  if (tttMode.value === 'online') {
+    if (!session || !room.value) return
+    if (room.value.status !== 'playing' || room.value.turn !== room.value.you) return
+
+    telegram.haptic('light')
+    playMoveSound(room.value.you)
+
+    const result = session.move(cell)
+    if (!result.ok) {
+      error.value = result.error
+      telegram.haptic('warning')
+    }
+    return
+  }
+
+  // Local modes: 'ai' or 'pass'
+  if (!room.value || room.value.status !== 'playing') return
+  if (room.value.board[cell] !== null) return
+
+  if (tttMode.value === 'ai') {
+    if (room.value.turn !== room.value.you || busy.value) return
+
+    telegram.haptic('light')
+    playMoveSound(room.value.you)
+
+    const newBoard = [...room.value.board]
+    newBoard[cell] = room.value.you
+    room.value.board = newBoard
+
+    const outcome = decideResult(newBoard)
+    if (outcome) {
+      handleLocalGameEnd(outcome)
+    } else {
+      room.value.turn = 'O'
+      triggerAiMove()
+    }
+  } else if (tttMode.value === 'pass') {
+    const currentSymbol = room.value.turn
+    telegram.haptic('light')
+    playMoveSound(currentSymbol)
+
+    const newBoard = [...room.value.board]
+    newBoard[cell] = currentSymbol
+    room.value.board = newBoard
+
+    const outcome = decideResult(newBoard)
+    if (outcome) {
+      handleLocalGameEnd(outcome)
+    } else {
+      room.value.turn = currentSymbol === 'X' ? 'O' : 'X'
+    }
   }
 }
 
 function requestRematch() {
-  if (!session || !room.value) return
   playClickSound()
   telegram.haptic('light')
 
-  const result = session.rematch()
-  if (!result.ok) {
-    error.value = result.error
-    telegram.haptic('warning')
+  if (tttMode.value === 'online') {
+    if (!session || !room.value) return
+    const result = session.rematch()
+    if (!result.ok) {
+      error.value = result.error
+      telegram.haptic('warning')
+    }
+    return
+  }
+
+  if (!room.value) return
+  // Fair alternating turns!
+  const nextStarter = room.value.starter === 'X' ? 'O' : 'X'
+  room.value.board = Array(9).fill(null)
+  room.value.round = (room.value.round || 1) + 1
+  room.value.starter = nextStarter
+  room.value.turn = nextStarter
+  room.value.result = null
+  room.value.status = 'playing'
+  room.value.rematch = { X: false, O: false }
+  room.value.version = (room.value.version || 1) + 1
+
+  if (tttMode.value === 'ai' && nextStarter === 'O') {
+    triggerAiMove()
   }
 }
 
@@ -219,6 +419,7 @@ function leaveMatch() {
   session?.leave()
   session = null
   room.value = null
+  tttMode.value = 'online'
   error.value = ''
   loading.value = false
   busy.value = false
@@ -402,7 +603,7 @@ onBeforeUnmount(() => {
         </button>
 
         <span
-          v-if="currentGame === 'ttt' && connection !== 'idle' && connection !== 'closed'"
+          v-if="currentGame === 'ttt' && tttMode === 'online' && connection !== 'idle' && connection !== 'closed'"
           class="conn-pill"
           :class="connection"
           :title="`Status: ${connection}`"
@@ -426,7 +627,7 @@ onBeforeUnmount(() => {
         @back-to-hub="goToHub"
       />
 
-      <!-- Classic Game: Tic Tac Toe (3x3 Online) -->
+      <!-- Classic Game: Tic Tac Toe (3x3 Online & Local) -->
       <template v-else-if="currentGame === 'ttt'">
         <div v-if="loading" class="card loading-card">
           <span class="spinner big" aria-hidden="true"></span>
@@ -442,6 +643,8 @@ onBeforeUnmount(() => {
           :error="error"
           @random-code="generateRandomCode"
           @submit="joinMatch"
+          @start-ai="startSoloAIMatch"
+          @start-pass="startPassAndPlayMatch"
         />
 
         <LobbyScreen

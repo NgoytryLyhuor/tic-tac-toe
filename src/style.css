@@ -338,6 +338,108 @@ h1 {
   font-size: 0.95rem;
 }
 
+/* ---------- Mode Switcher Tabs (5px corners) ---------- */
+
+.mode-tabs {
+  display: flex;
+  gap: 4px;
+  background: rgba(8, 12, 26, 0.7);
+  padding: 3px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+
+.mode-tab-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 6px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  touch-action: manipulation;
+}
+
+.mode-tab-btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.mode-tab-btn.active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(124, 92, 255, 0.35);
+}
+
+.sub-segmented {
+  display: flex;
+  gap: 4px;
+  background: rgba(8, 12, 26, 0.5);
+  padding: 3px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  margin-bottom: 10px;
+}
+
+.sub-seg-btn {
+  flex: 1;
+  padding: 6px 6px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  touch-action: manipulation;
+}
+
+.sub-seg-btn:hover {
+  color: var(--text);
+}
+
+.sub-seg-btn.active {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--text);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.ai-setup-pane,
+.pvp-setup-pane,
+.pass-setup-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: riseIn 0.2s ease both;
+}
+
+.diff-help {
+  color: var(--muted-soft);
+  font-size: 0.7rem;
+  line-height: 1.3;
+  margin-top: 2px;
+}
+
+.pass-desc {
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.4;
+  margin: 0;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 5px;
+  border: 1px solid var(--border);
+}
+
 /* ---------- Forms & Inputs (5px corners) ---------- */
 
 .form {
