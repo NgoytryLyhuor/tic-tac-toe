@@ -125,3 +125,4 @@ export function getTicTacToeAIMove(board, difficulty = 'medium', botSymbol = 'O'
   // Master difficulty: Minimax
   return getMinimaxMove(board, botSymbol)
 }
+

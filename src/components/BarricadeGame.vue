@@ -225,6 +225,24 @@ function getIntersectionStyle(r, c) {
     left: `calc(${left}% - 10px)`,
   }
 }
+
+const p0 = computed(() => state.value.pawns[0])
+const p1 = computed(() => state.value.pawns[1])
+const walls0 = computed(() => state.value.wallsLeft[0])
+const walls1 = computed(() => state.value.wallsLeft[1])
+const currentWalls = computed(() => state.value.wallsLeft[state.value.turn])
+
+function hasHWall(r, c) {
+  return state.value.walls.some((w) => w.orientation === 'H' && w.row === r && w.col === c)
+}
+
+function hasVWall(r, c) {
+  return state.value.walls.some((w) => w.orientation === 'V' && w.row === r && w.col === c)
+}
+
+function hasIntersectionWall(r, c) {
+  return state.value.walls.some((w) => w.row === r && w.col === c)
+}
 </script>
 
 <template>
@@ -338,12 +356,12 @@ function getIntersectionStyle(r, c) {
           <span class="rack-name">{{ gameMode === 'ai' ? 'You' : 'Red' }}</span>
           <div class="wall-sticks">
             <span
-              v-for="w in state.players[0].walls"
+              v-for="w in walls0"
               :key="w"
               class="wall-stick red"
             ></span>
           </div>
-          <span class="rack-num">{{ state.players[0].walls }}</span>
+          <span class="rack-num">{{ walls0 }}</span>
         </div>
 
         <!-- Player 1 (Top / Blue) -->
@@ -352,12 +370,12 @@ function getIntersectionStyle(r, c) {
           <span class="rack-name">{{ gameMode === 'ai' ? 'AI' : 'Blue' }}</span>
           <div class="wall-sticks">
             <span
-              v-for="w in state.players[1].walls"
+              v-for="w in walls1"
               :key="w"
               class="wall-stick blue"
             ></span>
           </div>
-          <span class="rack-num">{{ state.players[1].walls }}</span>
+          <span class="rack-num">{{ walls1 }}</span>
         </div>
       </div>
 
@@ -378,23 +396,23 @@ function getIntersectionStyle(r, c) {
               type="button"
               class="q-cell"
               :class="{
-                'has-p0': state.players[0].row === r - 1 && state.players[0].col === c - 1,
-                'has-p1': state.players[1].row === r - 1 && state.players[1].col === c - 1,
+                'has-p0': p0.row === r - 1 && p0.col === c - 1,
+                'has-p1': p1.row === r - 1 && p1.col === c - 1,
                 legal: isCellLegalMove(r - 1, c - 1),
                 target0: r - 1 === 0,
                 target1: r - 1 === 8,
               }"
-              :disabled="!isCellLegalMove(r - 1, c - 1) && !(state.players[0].row === r - 1 && state.players[0].col === c - 1) && !(state.players[1].row === r - 1 && state.players[1].col === c - 1)"
+              :disabled="!isCellLegalMove(r - 1, c - 1) && !(p0.row === r - 1 && p0.col === c - 1) && !(p1.row === r - 1 && p1.col === c - 1)"
               @click="onCellClick(r - 1, c - 1)"
             >
               <!-- Pawn 0 (Red / You) -->
               <span
-                v-if="state.players[0].row === r - 1 && state.players[0].col === c - 1"
+                v-if="p0.row === r - 1 && p0.col === c - 1"
                 class="pawn red-pawn"
               ></span>
               <!-- Pawn 1 (Blue / Opponent) -->
               <span
-                v-else-if="state.players[1].row === r - 1 && state.players[1].col === c - 1"
+                v-else-if="p1.row === r - 1 && p1.col === c - 1"
                 class="pawn blue-pawn"
               ></span>
               <!-- Legal Move Hint Dot -->
@@ -413,7 +431,7 @@ function getIntersectionStyle(r, c) {
               v-for="c in 8"
               :key="`hw-${r-1}-${c-1}`"
               class="wall-slot h-slot"
-              :class="{ placed: state.walls.H[r - 1][c - 1] }"
+              :class="{ placed: hasHWall(r - 1, c - 1) }"
               :style="getHWallStyle(r, c)"
             ></span>
           </template>
@@ -426,7 +444,7 @@ function getIntersectionStyle(r, c) {
               v-for="c in 8"
               :key="`vw-${r-1}-${c-1}`"
               class="wall-slot v-slot"
-              :class="{ placed: state.walls.V[r - 1][c - 1] }"
+              :class="{ placed: hasVWall(r - 1, c - 1) }"
               :style="getVWallStyle(r, c)"
             ></span>
           </template>
@@ -441,7 +459,7 @@ function getIntersectionStyle(r, c) {
               type="button"
               class="intersection-btn"
               :class="{
-                'can-place': isMyTurn && !isAiThinking && state.players[state.turn].walls > 0 && !state.walls.H[r - 1][c - 1] && !state.walls.V[r - 1][c - 1],
+                'can-place': isMyTurn && !isAiThinking && currentWalls > 0 && !hasIntersectionWall(r - 1, c - 1),
                 'preview-h': actionMode === 'wall' && wallOrientation === 'H',
                 'preview-v': actionMode === 'wall' && wallOrientation === 'V',
               }"
@@ -471,11 +489,11 @@ function getIntersectionStyle(r, c) {
           type="button"
           class="dock-btn"
           :class="{ active: actionMode === 'wall' }"
-          :disabled="state.players[state.turn].walls === 0"
+          :disabled="currentWalls === 0"
           @click="toggleActionMode('wall')"
         >
           <span class="dock-icon">🧱</span>
-          <span class="dock-label">Wall ({{ state.players[state.turn].walls }})</span>
+          <span class="dock-label">Wall ({{ currentWalls }})</span>
         </button>
 
         <button
