@@ -8,6 +8,33 @@
 export const BOARD_SIZE = 9
 export const INITIAL_WALLS = 10
 
+/** Stable, non-reversible fingerprint used to let a guest confirm its seat. */
+export function hashId(value) {
+  let hash = 2166136261
+  const text = String(value ?? '')
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
+  }
+  return (hash >>> 0).toString(36)
+}
+
+export function normalizeCode(value) {
+  return String(value ?? '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .slice(0, 8)
+}
+
+export function normalizeName(value, fallback = 'Player') {
+  const name = String(value ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 24)
+  return name || fallback
+}
+
 export function createBarricadeState(mode = 'ai', difficulty = 'medium') {
   return {
     mode, // 'ai' | 'pass' | 'online'
@@ -22,6 +49,133 @@ export function createBarricadeState(mode = 'ai', difficulty = 'medium') {
     winner: null, // null | 0 | 1
     moveHistory: [],
     version: 1,
+  }
+}
+
+/** Online 2-device multiplayer room factory */
+export function createBarricadeRoom(code, hostId, hostName, hostToken) {
+  return {
+    code: normalizeCode(code),
+    hostToken,
+    pawns: [
+      { row: 8, col: 4 }, // Player 0 (Host / Bottom)
+      { row: 0, col: 4 }, // Player 1 (Guest / Top)
+    ],
+    wallsLeft: [INITIAL_WALLS, INITIAL_WALLS],
+    walls: [],
+    players: {
+      0: { id: hostId, name: normalizeName(hostName, 'Player 1') },
+      1: null,
+    },
+    turn: 0,
+    round: 1,
+    starter: 0,
+    scores: { 0: 0, 1: 0 },
+    status: 'waiting', // 'waiting' | 'playing' | 'finished'
+    winner: null,
+    rematch: { 0: false, 1: false },
+    version: 1,
+    opponentOnline: false,
+    createdAt: Date.now(),
+  }
+}
+
+export function seatBarricadeGuest(room, guestId, guestName) {
+  if (room.players[1]) return false
+
+  room.players[1] = { id: guestId, name: normalizeName(guestName, 'Player 2') }
+  room.pawns = [
+    { row: 8, col: 4 },
+    { row: 0, col: 4 },
+  ]
+  room.wallsLeft = [INITIAL_WALLS, INITIAL_WALLS]
+  room.walls = []
+  room.round = room.round || 1
+  room.starter = room.starter ?? 0
+  room.turn = room.starter
+  room.scores = room.scores || { 0: 0, 1: 0 }
+  room.status = 'playing'
+  room.winner = null
+  room.rematch = { 0: false, 1: false }
+  room.version += 1
+  return true
+}
+
+export function requestBarricadeRematch(room, playerIndex) {
+  if (room.status !== 'finished') {
+    return { ok: false, error: 'Finish the current round first.' }
+  }
+  if (!room.players[0] || !room.players[1]) {
+    return { ok: false, error: 'Waiting for an opponent to join.' }
+  }
+
+  const idx = Number(playerIndex)
+  if (idx !== 0 && idx !== 1) return { ok: false, error: 'Invalid player index.' }
+
+  room.rematch[idx] = true
+
+  if (room.rematch[0] && room.rematch[1]) {
+    room.pawns = [
+      { row: 8, col: 4 },
+      { row: 0, col: 4 },
+    ]
+    room.wallsLeft = [INITIAL_WALLS, INITIAL_WALLS]
+    room.walls = []
+    // Alternate starter each round for fairness!
+    const nextStarter = room.starter === 0 ? 1 : 0
+    room.starter = nextStarter
+    room.turn = nextStarter
+    room.round = (room.round || 1) + 1
+    room.status = 'playing'
+    room.winner = null
+    room.rematch = { 0: false, 1: false }
+  }
+
+  room.version += 1
+  return { ok: true }
+}
+
+export function resetBarricadeForWaiting(room) {
+  room.players[1] = null
+  room.pawns = [
+    { row: 8, col: 4 },
+    { row: 0, col: 4 },
+  ]
+  room.wallsLeft = [INITIAL_WALLS, INITIAL_WALLS]
+  room.walls = []
+  room.round = 1
+  room.starter = 0
+  room.turn = 0
+  room.scores = { 0: 0, 1: 0 }
+  room.status = 'waiting'
+  room.winner = null
+  room.rematch = { 0: false, 1: false }
+  room.opponentOnline = false
+  room.version += 1
+}
+
+/** Wire shape published on MQTT relay: no private IDs, just public fingerprints and state */
+export function toWireBarricadeRoom(room) {
+  return {
+    code: room.code,
+    hostToken: room.hostToken,
+    pawns: room.pawns,
+    wallsLeft: room.wallsLeft,
+    walls: room.walls,
+    turn: room.turn,
+    round: room.round || 1,
+    starter: room.starter ?? 0,
+    scores: room.scores || { 0: 0, 1: 0 },
+    status: room.status,
+    winner: room.winner,
+    rematch: room.rematch,
+    version: room.version,
+    opponentOnline: room.opponentOnline !== false,
+    players: {
+      0: room.players[0] ? { name: room.players[0].name } : null,
+      1: room.players[1] ? { name: room.players[1].name } : null,
+    },
+    seat1: room.players[1] ? hashId(room.players[1].id) : null,
   }
 }
 
@@ -211,6 +365,12 @@ export function getLegalMoves(state, playerIndex = state.turn) {
 
 /** Execute pawn move */
 export function applyMovePawn(state, targetRow, targetCol) {
+  if (state.status === 'waiting') {
+    return { ok: false, error: 'Waiting for an opponent to join.' }
+  }
+  if (state.status && state.status !== 'playing') {
+    return { ok: false, error: 'This round is over. Start a rematch to play again.' }
+  }
   if (state.winner !== null) return { ok: false, error: 'Match already finished.' }
 
   const legalMoves = getLegalMoves(state, state.turn)
@@ -219,26 +379,43 @@ export function applyMovePawn(state, targetRow, targetCol) {
   if (!isLegal) return { ok: false, error: 'Illegal move.' }
 
   state.pawns[state.turn] = { row: targetRow, col: targetCol }
-  state.moveHistory.push({
-    player: state.turn,
-    type: 'move',
-    to: { row: targetRow, col: targetCol },
-  })
+  if (state.moveHistory) {
+    state.moveHistory.push({
+      player: state.turn,
+      type: 'move',
+      to: { row: targetRow, col: targetCol },
+    })
+  }
 
   // Check Win Condition
   const targetGoalRow = state.turn === 0 ? 0 : 8
   if (targetRow === targetGoalRow) {
     state.winner = state.turn
+    if (state.status) {
+      state.status = 'finished'
+    }
+    if (state.scores) {
+      state.scores[state.turn] = (state.scores[state.turn] || 0) + 1
+    }
+    if (state.rematch) {
+      state.rematch = { 0: false, 1: false }
+    }
   } else {
     state.turn = 1 - state.turn
   }
 
-  state.version += 1
+  state.version = (state.version || 1) + 1
   return { ok: true }
 }
 
 /** Execute wall placement */
 export function applyPlaceWall(state, row, col, orientation) {
+  if (state.status === 'waiting') {
+    return { ok: false, error: 'Waiting for an opponent to join.' }
+  }
+  if (state.status && state.status !== 'playing') {
+    return { ok: false, error: 'This round is over. Start a rematch to play again.' }
+  }
   if (!isValidWallPlacement(state, row, col, orientation)) {
     return { ok: false, error: 'Invalid wall placement or blocks all paths.' }
   }
@@ -247,14 +424,16 @@ export function applyPlaceWall(state, row, col, orientation) {
   state.walls.push({ row, col, orientation, placedBy: player })
   state.wallsLeft[player] -= 1
 
-  state.moveHistory.push({
-    player,
-    type: 'wall',
-    wall: { row, col, orientation },
-  })
+  if (state.moveHistory) {
+    state.moveHistory.push({
+      player,
+      type: 'wall',
+      wall: { row, col, orientation },
+    })
+  }
 
   state.turn = 1 - state.turn
-  state.version += 1
+  state.version = (state.version || 1) + 1
   return { ok: true }
 }
 

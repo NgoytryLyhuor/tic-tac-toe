@@ -48,6 +48,8 @@ const copied = ref('')
 const connection = ref('idle')
 const brokerIndex = ref(-1)
 const soundOn = ref(isSoundEnabled())
+const barricadeCode = ref('')
+const barricadeBroker = ref(-1)
 
 let session = null
 let busyTimer = null
@@ -507,6 +509,8 @@ function goToHub() {
     session = null
     room.value = null
   }
+  barricadeCode.value = ''
+  barricadeBroker.value = -1
   currentGame.value = 'hub'
   try {
     const url = new URL(location.href)
@@ -528,6 +532,8 @@ onMounted(() => {
 
   if (urlGame === 'barricade') {
     currentGame.value = 'barricade'
+    if (urlCode) barricadeCode.value = urlCode
+    if (Number.isFinite(preferredBroker)) barricadeBroker.value = preferredBroker
     return
   }
 
@@ -624,6 +630,8 @@ onBeforeUnmount(() => {
       <!-- New Game: Barricade (Quoridor 9x9) -->
       <BarricadeGame
         v-else-if="currentGame === 'barricade'"
+        :initial-code="barricadeCode"
+        :initial-broker="barricadeBroker"
         @back-to-hub="goToHub"
       />
 

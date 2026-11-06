@@ -76,8 +76,16 @@ function getMinimaxMove(board, botSymbol = 'O') {
   const available = getAvailableCells(board)
   if (available.length === 0) return null
 
-  // If opening move or empty center, take center for speed
-  if (board[4] === null && Math.random() < 0.7) return 4
+  // 1. Take immediate win
+  const win = findWinningMove(board, botSymbol)
+  if (win !== null) return win
+
+  // 2. Block immediate human win
+  const block = findWinningMove(board, humanSymbol)
+  if (block !== null) return block
+
+  // If board is empty, take center
+  if (available.length === 9) return 4
 
   let bestMove = available[0]
   let bestScore = -Infinity

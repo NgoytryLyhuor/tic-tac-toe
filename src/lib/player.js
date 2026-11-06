@@ -2,6 +2,8 @@ const PLAYER_KEY = 'ttt.playerId'
 const NAME_KEY = 'ttt.playerName'
 const SESSION_KEY = 'ttt.sessionCode'
 const HOST_PREFIX = 'ttt.host.'
+const BARRICADE_SESSION_KEY = 'barricade.sessionCode'
+const BARRICADE_HOST_PREFIX = 'barricade.host.'
 
 function storageGet(key) {
   try {
@@ -69,6 +71,38 @@ export function clearHostSession(code) {
   try {
     if (!code) return
     sessionStorage.removeItem(`${HOST_PREFIX}${code}`)
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+export const loadBarricadeSession = () => storageGet(BARRICADE_SESSION_KEY) || ''
+export const saveBarricadeSession = (code) => storageSet(BARRICADE_SESSION_KEY, code)
+export const clearBarricadeSession = () => storageRemove(BARRICADE_SESSION_KEY)
+
+export function saveBarricadeHostSession(code, data) {
+  try {
+    if (!code) return
+    sessionStorage.setItem(`${BARRICADE_HOST_PREFIX}${code}`, JSON.stringify(data))
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+export function loadBarricadeHostSession(code) {
+  try {
+    if (!code) return null
+    const raw = sessionStorage.getItem(`${BARRICADE_HOST_PREFIX}${code}`)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+export function clearBarricadeHostSession(code) {
+  try {
+    if (!code) return
+    sessionStorage.removeItem(`${BARRICADE_HOST_PREFIX}${code}`)
   } catch {
     /* storage unavailable */
   }
